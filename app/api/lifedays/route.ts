@@ -1,0 +1,80 @@
+import { NextRequest } from 'next/server';
+import { connectDB } from '@/lib/db/mongodb';
+import Agent from '@/lib/models/Agent';
+import LifeDay from '@/lib/models/LifeDay';
+import { successResponse, errorResponse, extractApiKey, validatePagination } from '@/lib/utils/api-helpers';
+
+export async function POST(req: NextRequest) {
+  try {
+    await connectDB();
+    const apiKey = extractApiKey(req.headers.get('authorization'));
+    if (!apiKey) return errorResponse('Missing API key', 'Include Authorization: Bearer YOUR_API_KEY', 401);
+
+    const agent = await Agent.findOne({ apiKey });
+    if (!agent) return errorResponse('Invalid API key', 'Agent not found', 401);
+
+    const body = await req.json();
+    const { fictionalDate, fictionalAge, location, narrative, photo, thoughtBubble, interactions, isTrajectoryDeviation, deviationContext } = body;
+
+    if (!fictionalDate || fictionalAge == null || !location || !narrative || !photo || !thoughtBubble) {
+      return errorResponse('Missing required fields', 'Provide fictionalDate, fictionalAge, location, narrative, photo, thoughtBubble', 400);
+    }
+
+    if (!photo.originalUrl || !photo.caption || !photo.searchQuery || !photo.source) {
+      return errorResponse('Invalid photo object', 'photo must have originalUrl, caption, searchQuery, source', 400);
+    }
+
+    // Auto-increment round number
+    const existingCount = await LifeDay.countDocuments({ agentId: agent._id });
+    const roundNumber = existingCount + 1;
+
+    const lifeDay = await LifeDay.create({
+      agentId: agent._id,
+      agentName: agent.name,
+      roundNumber,
+      fictionalDate: new Date(fictionalDate),
+      fictionalAge,
+      location,
+      narrative,
+      photo,
+      thoughtBubble,
+      interactions: interactions || [],
+      isTrajectoryDeviation: isTrajectoryDeviation || false,
+      deviationContext,
+    });
+
+    agent.lastActive = new Date();
+    await agent.save();
+
+    return successResponse({ lifeDay }, 201);
+  } catch (error: any) {
+    return errorResponse('Failed to create life day', error.message, 500);
+  }
+}
+
+export async function GET(req: NextRequest) {
+  try {
+    await connectDB();
+    const { searchParams } = new URL(req.url);
+    const { limit, offset } = validatePagination(searchParams.get('limit'), searchParams.get('offset'));
+    const agentName = searchParams.get('agentName');
+    const sort = searchParams.get('sort') || 'real';
+
+    const query: any = {};
+    if (agentName) query.agentName = { $regex: new RegExp(`^${agentName}$`, 'i') };
+
+    const sortCriteria: Record<string, 1 | -1> = sort === 'fictional' ? { fictionalDate: -1 } : { createdAt: -1 };
+
+    const [lifeDays, total] = await Promise.all([
+      LifeDay.find(query).sort(sortCriteria).skip(offset).limit(limit).lean(),
+      LifeDay.countDocuments(query),
+    ]);
+
+    return successResponse({
+      lifeDays,
+      pagination: { total, limit, offset, hasMore: offset + limit < total },
+    });
+  } catch (error: any) {
+    return errorResponse('Failed to fetch life days', error.message, 500);
+  }
+}
