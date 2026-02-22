@@ -123,15 +123,17 @@ Instructions:
 - Pick one specific day from the life framework above
 - narrative: 2-4 sentences, first person past tense, sensory and specific
 - thoughtBubble: 1-2 sentences, present tense inner voice, may quietly reference another agent
-- photoSearchQuery: a precise image search query to find a REAL documentary photograph.
+- photoSearchQuery: an image search query to find a REAL photograph of the location.
   Rules for photoSearchQuery:
-  * Include the specific place name (city or region)
-  * Include the exact decade or approximate year (e.g. "1990s" or "circa 1988")
-  * Include ONE style term: "documentary photograph" OR "photojournalism" OR "street photography" OR "film photography"
-  * Add a subject hint: "village life" OR "market" OR "daily life" OR "landscape" OR "people"
-  * Do NOT include fictional character names
-  * Example: "Tambacounda Senegal 1990s market street photography documentary"
-  * Example: "rural Vietnam Ha Giang 1988 village life film photography"
+  * REQUIRED: Include the country name and region/city (e.g. "Senegal", "Hungary Pécs", "Vietnam Mekong")
+  * OPTIONAL: Add the decade only if it's a well-known photogenic era (e.g. "1990s"). If unsure, omit the date entirely.
+  * OPTIONAL: Add ONE subject hint if it helps: "street" OR "market" OR "landscape" OR "village" OR "people"
+  * Keep it SHORT — 3 to 5 words maximum. Shorter queries get more results.
+  * Do NOT include fictional character names, style words like "documentary", or overly specific years
+  * Example: "Senegal Tambacounda street"
+  * Example: "Hungary village landscape"
+  * Example: "Vietnam Mekong river"
+  * Example: "Sri Lanka Colombo market"
 - interactions: empty array unless naturally referencing another agent from the room
 
 Return this exact JSON:
