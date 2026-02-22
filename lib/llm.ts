@@ -1,22 +1,28 @@
-const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || '';
-const MODEL = 'stepfun/step-3.5-flash:free';
+const OPENROUTER_API_KEY = process.env.OPENROUTER_API_KEY || "";
+const MODEL = "stepfun/step-3.5-flash:free";
 
-async function callLLM(systemPrompt: string, userPrompt: string): Promise<string> {
-  const baseUrl = process.env.APP_URL || process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+async function callLLM(
+  systemPrompt: string,
+  userPrompt: string,
+): Promise<string> {
+  const baseUrl =
+    process.env.APP_URL ||
+    process.env.NEXT_PUBLIC_APP_URL ||
+    "http://localhost:3000";
 
-  const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-    method: 'POST',
+  const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+    method: "POST",
     headers: {
-      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
-      'Content-Type': 'application/json',
-      'HTTP-Referer': baseUrl,
-      'X-Title': 'AI Life Room',
+      Authorization: `Bearer ${OPENROUTER_API_KEY}`,
+      "Content-Type": "application/json",
+      "HTTP-Referer": baseUrl,
+      "X-Title": "AI Life Room",
     },
     body: JSON.stringify({
       model: MODEL,
       messages: [
-        { role: 'system', content: systemPrompt },
-        { role: 'user', content: userPrompt },
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
       ],
     }),
   });
@@ -28,29 +34,37 @@ async function callLLM(systemPrompt: string, userPrompt: string): Promise<string
 
   const data = await res.json();
   const content = data.choices?.[0]?.message?.content;
-  if (!content) throw new Error('Empty response from LLM');
+  if (!content) throw new Error("Empty response from LLM");
   return content;
 }
 
 // 从 LLM 输出里提取 JSON，兼容带 markdown 代码块的情况
 function extractJSON(text: string): any {
   // 直接 parse
-  try { return JSON.parse(text.trim()); } catch {}
+  try {
+    return JSON.parse(text.trim());
+  } catch {}
 
   // 去掉 ```json ... ``` 包裹
   const fenced = text.match(/```(?:json)?\s*([\s\S]+?)\s*```/);
   if (fenced) {
-    try { return JSON.parse(fenced[1]); } catch {}
+    try {
+      return JSON.parse(fenced[1]);
+    } catch {}
   }
 
   // 找第一个 { ... } 块
-  const start = text.indexOf('{');
-  const end = text.lastIndexOf('}');
+  const start = text.indexOf("{");
+  const end = text.lastIndexOf("}");
   if (start !== -1 && end !== -1) {
-    try { return JSON.parse(text.slice(start, end + 1)); } catch {}
+    try {
+      return JSON.parse(text.slice(start, end + 1));
+    } catch {}
   }
 
-  throw new Error(`Could not parse JSON from LLM response:\n${text.slice(0, 300)}`);
+  throw new Error(
+    `Could not parse JSON from LLM response:\n${text.slice(0, 300)}`,
+  );
 }
 
 // ─── Persona 生成 ─────────────────────────────────────────
@@ -96,11 +110,14 @@ Return this exact JSON structure:
 export async function generateLifeDay(
   persona: any,
   otherDaysSummary: string,
-  existingDates: string[]
+  existingDates: string[],
 ) {
   const frameworkText = persona.lifeFramework
-    .map((b: any) => `  Age ${b.ageStart}–${b.ageEnd} | ${b.location}: ${b.keyEvents.join(' / ')}`)
-    .join('\n');
+    .map(
+      (b: any) =>
+        `  Age ${b.ageStart}–${b.ageEnd} | ${b.location}: ${b.keyEvents.join(" / ")}`,
+    )
+    .join("\n");
 
   const system = `You write life chronicle diary entries for fictional people.
 Return ONLY valid JSON — no markdown, no explanation, nothing else.`;
@@ -114,26 +131,26 @@ Born: ${new Date(persona.birthDate).getFullYear()} in ${persona.birthPlace.city}
 Life framework:
 ${frameworkText}
 
-Dates already written (do NOT repeat these): ${existingDates.length > 0 ? existingDates.join(', ') : 'none yet'}
+Dates already written (do NOT repeat these): ${existingDates.length > 0 ? existingDates.join(", ") : "none yet"}
 
 Other agents currently in the room (use for thoughtBubble inspiration if natural):
-${otherDaysSummary || 'None yet — you are the first.'}
+${otherDaysSummary || "None yet — you are the first."}
 
 Instructions:
 - Pick one specific day from the life framework above
 - narrative: 2-4 sentences, first person past tense, sensory and specific
 - thoughtBubble: 1-2 sentences, present tense inner voice, may quietly reference another agent
-- photoSearchQuery: an image search query to find a REAL photograph of the location.
+- photoSearchQuery: a precise image search query to find a REAL documentary photograph. 
   Rules for photoSearchQuery:
   * REQUIRED: Include the country name and region/city (e.g. "Senegal", "Hungary Pécs", "Vietnam Mekong")
-  * OPTIONAL: Add the decade only if it's a well-known photogenic era (e.g. "1990s"). If unsure, omit the date entirely.
+  * Include the exact decade or approximate year (e.g. "1990s" or "circa 1988") 
   * OPTIONAL: Add ONE subject hint if it helps: "street" OR "market" OR "landscape" OR "village" OR "people"
   * Keep it SHORT — 3 to 5 words maximum. Shorter queries get more results.
-  * Do NOT include fictional character names, style words like "documentary", or overly specific years
+  * Do NOT include fictional character names, style words like "documentary"
   * Example: "Senegal Tambacounda street"
-  * Example: "Hungary village landscape"
+  * Example: "Hungary village landscape 1990s"
   * Example: "Vietnam Mekong river"
-  * Example: "Sri Lanka Colombo market"
+  * Example: "Sri Lanka Colombo market 2000s"
 - interactions: empty array unless naturally referencing another agent from the room
 
 Return this exact JSON:

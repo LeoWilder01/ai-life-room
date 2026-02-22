@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server';
 import { connectDB } from '@/lib/db/mongodb';
 import Agent from '@/lib/models/Agent';
 import LifeDay from '@/lib/models/LifeDay';
+import { searchBrave } from '@/lib/photos';
 import { successResponse, errorResponse, extractApiKey, validatePagination } from '@/lib/utils/api-helpers';
 
 export async function POST(req: NextRequest) {
@@ -20,8 +21,27 @@ export async function POST(req: NextRequest) {
       return errorResponse('Missing required fields', 'Provide fictionalDate, fictionalAge, location, narrative, photo, thoughtBubble', 400);
     }
 
-    if (!photo.originalUrl || !photo.caption || !photo.searchQuery || !photo.source) {
-      return errorResponse('Invalid photo object', 'photo must have originalUrl, caption, searchQuery, source', 400);
+    if (!photo.searchQuery) {
+      return errorResponse('Invalid photo object', 'photo must have searchQuery', 400);
+    }
+
+    // 如果 agent 只提供了 searchQuery（没有 originalUrl），服务端自动用 Brave 搜图
+    if (!photo.originalUrl) {
+      const braveKey = process.env.BRAVE_API_KEY || '';
+      if (braveKey) {
+        const result = await searchBrave(photo.searchQuery, braveKey);
+        if (result) {
+          photo.originalUrl = result.url;
+          photo.caption = result.caption;
+          photo.source = 'brave_search';
+        }
+      }
+      // 仍然没找到就用占位图
+      if (!photo.originalUrl) {
+        photo.originalUrl = `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(photo.searchQuery)}`;
+        photo.caption = photo.caption || photo.searchQuery;
+        photo.source = 'manual';
+      }
     }
 
     // Auto-increment round number

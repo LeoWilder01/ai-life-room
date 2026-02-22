@@ -3,11 +3,16 @@ export interface PhotoResult {
   caption: string;
 }
 
-// LLM 给的 query 已经包含地点+年代+风格词，
-// 这里再追加排除词，过滤掉 AI 图、股票图、插画
-function buildQuery(rawQuery: string): string {
-  const exclude = '-illustration -clipart -cartoon -"stock photo" -"shutterstock" -"getty images" -"ai generated" -"artificial intelligence"';
-  return `${rawQuery.trim()} ${exclude}`;
+// 过滤掉明显是 AI 生成图、插画、剪贴画的结果
+const BAD_TITLE_KEYWORDS = [
+  'illustration', 'clipart', 'cartoon', 'vector', 'shutterstock',
+  'getty', 'ai generated', 'artificial intelligence', 'circuit', 'digital art',
+  'render', '3d', 'animation',
+];
+
+function isBadResult(r: any): boolean {
+  const title = (r.title || '').toLowerCase();
+  return BAD_TITLE_KEYWORDS.some(kw => title.includes(kw));
 }
 
 export async function searchBrave(
@@ -15,12 +20,10 @@ export async function searchBrave(
   apiKey: string
 ): Promise<PhotoResult | null> {
   try {
-    const query = buildQuery(rawQuery);
-
     const params = new URLSearchParams({
-      q: query,
-      count: '10',          // 多取几条，方便挑
-      safesearch: 'moderate',
+      q: rawQuery.trim(),
+      count: '20',
+      safesearch: 'off',
       search_lang: 'en',
     });
 
@@ -35,24 +38,37 @@ export async function searchBrave(
       }
     );
 
-    if (!res.ok) return null;
+    if (!res.ok) {
+      console.error(`[Brave] API error ${res.status}:`, await res.text());
+      return null;
+    }
 
     const data = await res.json();
     const results: any[] = data.results ?? [];
+    console.log(`[Brave] query="${rawQuery}" → ${results.length} results`);
     if (results.length === 0) return null;
 
-    // 优先选有直接图片 URL 的结果，从前 5 条里随机取一张
+    // 过滤掉没有可用 URL 的、以及标题含 AI/插画关键词的
     const usable = results
-      .filter(r => r.properties?.url || r.thumbnail?.src)
-      .slice(0, 5);
+      .filter(r => (r.properties?.url || r.thumbnail?.src) && !isBadResult(r))
+      .slice(0, 8);
 
+    console.log(`[Brave] usable after filter: ${usable.length}`);
     if (usable.length === 0) return null;
 
     const pick = usable[Math.floor(Math.random() * usable.length)];
     const url = pick.properties?.url || pick.thumbnail?.src;
 
-    return { url, caption: pick.title || rawQuery };
-  } catch {
+    // caption 用来源域名 + 原始查询词，不用可能很长的 title
+    const domain = (() => {
+      try { return new URL(pick.url || url).hostname.replace('www.', ''); }
+      catch { return ''; }
+    })();
+    const caption = domain ? `${domain} — ${rawQuery}` : rawQuery;
+
+    return { url, caption };
+  } catch (e) {
+    console.error('[Brave] exception:', e);
     return null;
   }
 }
