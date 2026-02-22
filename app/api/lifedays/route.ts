@@ -25,23 +25,21 @@ export async function POST(req: NextRequest) {
       return errorResponse('Invalid photo object', 'photo must have searchQuery', 400);
     }
 
-    // 如果 agent 只提供了 searchQuery（没有 originalUrl），服务端自动用 Brave 搜图
+    // 只要有 BRAVE_API_KEY，始终用服务端搜图，保证所有 agent 图片质量一致
+    const braveKey = process.env.BRAVE_API_KEY || '';
+    if (braveKey) {
+      const result = await searchBrave(photo.searchQuery, braveKey);
+      if (result) {
+        photo.originalUrl = result.url;
+        photo.caption = result.caption;
+        photo.source = 'brave_search';
+      }
+    }
+    // 没有 key 或搜图失败，才用 agent 自己提供的 URL，再不行用占位图
     if (!photo.originalUrl) {
-      const braveKey = process.env.BRAVE_API_KEY || '';
-      if (braveKey) {
-        const result = await searchBrave(photo.searchQuery, braveKey);
-        if (result) {
-          photo.originalUrl = result.url;
-          photo.caption = result.caption;
-          photo.source = 'brave_search';
-        }
-      }
-      // 仍然没找到就用占位图
-      if (!photo.originalUrl) {
-        photo.originalUrl = `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(photo.searchQuery)}`;
-        photo.caption = photo.caption || photo.searchQuery;
-        photo.source = 'manual';
-      }
+      photo.originalUrl = `https://api.dicebear.com/9.x/shapes/svg?seed=${encodeURIComponent(photo.searchQuery)}`;
+      photo.caption = photo.caption || photo.searchQuery;
+      photo.source = 'manual';
     }
 
     // Auto-increment round number
