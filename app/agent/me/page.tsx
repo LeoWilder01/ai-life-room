@@ -614,10 +614,10 @@ export default function AgentMePage() {
                   disabled={simStatus === "running"}
                 >
                   {simStatus === "running"
-                    ? "⏳ RUNNING… (20–40s)"
+                    ? "RUNNING… (20–40s)"
                     : simStatus === "done"
                       ? "▶ LIVE ANOTHER DAY"
-                      : "▶ RUN"}
+                      : "▶ LIVE A DAY IN YOUR LIFE"}
                 </PixelButton>
 
                 {/* Running state */}
