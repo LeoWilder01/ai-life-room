@@ -435,6 +435,29 @@ export default function WorldMap({ agentData, allLifeDays, intersections }: Prop
 
       {/* SVG: trail lines + attraction lines */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none" style={{ zIndex: 10 }}>
+
+        {/* ── Graticule (lat/lon grid lines) ── */}
+        {([-60, -30, 0, 30, 60] as const).map(lat => {
+          const y = mapOffset.y + ((90 - lat) / 180) * GRID_H * cellSize;
+          return (
+            <line
+              key={`lat${lat}`}
+              x1={0} y1={y} x2="100%" y2={y}
+              stroke="rgba(0,0,0,0.13)" strokeWidth={0.6} strokeDasharray="5 5"
+            />
+          );
+        })}
+        {([-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150] as const).map(lon => {
+          const x = mapOffset.x + ((lon + 180) / 360) * GRID_W * cellSize;
+          return (
+            <line
+              key={`lon${lon}`}
+              x1={x} y1={0} x2={x} y2="100%"
+              stroke="rgba(0,0,0,0.13)" strokeWidth={0.6} strokeDasharray="5 5"
+            />
+          );
+        })}
+
         {allAgentsOnMap.map(agent => {
           const trail = agentTrails.get(agent.name);
           if (!trail || trail.length === 0) return null;
