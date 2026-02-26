@@ -8,11 +8,11 @@ const PIXEL_FONT = "var(--font-vt323), 'VT323', monospace";
 
 // ── Adjustable parameters ──────────────────────────────────────────────────
 const BG_CLOSED = "rgba(255, 255, 255, 0.58)"; // background when collapsed
-const BG_OPEN = "rgba(13, 27, 42, 0.55)"; // background when expanded
+const BG_OPEN = "rgb(13, 27, 42)"; // background when expanded
 const N_COLLAPSED = 10; // number of entries (always the same count)
 const W_CLOSED = 100; // width when collapsed (text-only column)
 const W_OPEN = 230; // width when expanded (text + photo column)
-const DIVIDER = "1px"; // thickness of the horizontal divider lines
+const DIVIDER = "2px"; // thickness of the horizontal divider lines
 // ──────────────────────────────────────────────────────────────────────────
 
 interface LifeDay {
