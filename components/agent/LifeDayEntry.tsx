@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import PhotoThumb from '@/components/ui/PhotoThumb';
 import ThoughtBubble from './ThoughtBubble';
 
 const PIXEL_FONT = "var(--font-vt323), 'VT323', monospace";
@@ -70,7 +70,7 @@ export default function LifeDayEntry({ day, showAgentHeader }: Props) {
 
       {/* Photo */}
       <div style={{ position: 'relative', aspectRatio: '16/9', background: '#111' }}>
-        <Image src={proxyUrl} alt={day.photo.caption} fill className="object-cover" unoptimized />
+        <PhotoThumb src={proxyUrl} alt={day.photo.caption} fill />
         <div
           style={{
             position: 'absolute',

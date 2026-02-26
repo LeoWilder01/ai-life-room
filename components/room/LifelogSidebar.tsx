@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import PhotoThumb from "@/components/ui/PhotoThumb";
 
 const PIXEL_FONT = "var(--font-vt323), 'VT323', monospace";
 
@@ -30,38 +31,6 @@ interface AgentData {
 interface Props {
   lifeDays: LifeDay[];
   agentData: AgentData[];
-}
-
-function PhotoThumb({ src, alt }: { src: string; alt: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) {
-    return (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          background: "#fff",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          fontSize: 22,
-          color: "#bbb",
-          userSelect: "none",
-        }}
-      >
-        ?
-      </div>
-    );
-  }
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src={src}
-      alt={alt}
-      onError={() => setFailed(true)}
-      style={{ width: "100%", height: "100%", objectFit: "cover" }}
-    />
-  );
 }
 
 function timeAgo(dateStr: string): string {

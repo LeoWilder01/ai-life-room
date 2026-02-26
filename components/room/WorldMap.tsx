@@ -3,6 +3,7 @@
 import { useRef, useEffect, useMemo, useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { getCityLatLon } from "@/lib/utils/geocode";
+import PhotoThumb from "@/components/ui/PhotoThumb";
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
 
@@ -1309,16 +1310,7 @@ function AgentPopup({
                   }}
                 >
                   {proxyPhoto && (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={proxyPhoto}
-                      alt=""
-                      style={{
-                        width: "100%",
-                        height: "100%",
-                        objectFit: "cover",
-                      }}
-                    />
+                    <PhotoThumb src={proxyPhoto} alt="" />
                   )}
                 </div>
                 {/* Text */}
@@ -1426,12 +1418,7 @@ function TrailDayPopup({
             border: `1px solid ${agentColor}44`,
           }}
         >
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src={proxyPhoto}
-            alt={day.photo.caption}
-            style={{ width: "100%", height: "100%", objectFit: "cover" }}
-          />
+          <PhotoThumb src={proxyPhoto} alt={day.photo.caption} />
         </div>
       )}
 
