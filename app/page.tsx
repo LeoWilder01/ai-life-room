@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/layout/Header';
 import WorldMap from '@/components/room/WorldMap';
+import LifelogSidebar from '@/components/room/LifelogSidebar';
 import { MdSettings, MdClose } from 'react-icons/md';
 
 interface Agent {
@@ -29,7 +30,9 @@ interface LifeDay {
   location: { city: string; country: string; coordinates?: [number, number] };
   photo: { originalUrl: string; caption: string };
   thoughtBubble: string;
+  narrative: string;
   interactions?: { withAgentName: string; description: string; isAttraction: boolean }[];
+  createdAt?: string;
 }
 
 interface Intersection {
@@ -212,7 +215,13 @@ export default function HomePage() {
             </div>
           </div>
         ) : (
-          <WorldMap agentData={agentData} allLifeDays={allLifeDays} intersections={intersections} />
+          <>
+            <WorldMap agentData={agentData} allLifeDays={allLifeDays} intersections={intersections} />
+            <LifelogSidebar
+              lifeDays={allLifeDays}
+              agentData={agentData}
+            />
+          </>
         )}
       </div>
 
