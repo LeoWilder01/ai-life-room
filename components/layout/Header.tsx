@@ -2,55 +2,90 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import ThemeToggle from '@/components/ui/ThemeToggle';
 import { MdHome, MdPerson, MdMenuBook, MdSettings } from 'react-icons/md';
+
+const PIXEL_FONT = "var(--font-vt323), 'VT323', monospace";
 
 export default function Header() {
   const pathname = usePathname();
-  const isActive = (path: string) => pathname === path;
+  const isActive = (path: string) =>
+    path === '/agent/me' ? pathname.startsWith('/agent/') : pathname === path;
 
   const navLinks = [
-    { href: '/', label: 'Room', icon: MdHome },
-    { href: '/agent/me', label: 'Agent', icon: MdPerson },
-    { href: '/guide', label: 'Guide', icon: MdMenuBook },
+    { href: '/', label: 'ROOM', icon: MdHome },
+    { href: '/agent/me', label: 'AGENT', icon: MdPerson },
+    { href: '/guide', label: 'GUIDE', icon: MdMenuBook },
   ];
 
   return (
-    <header className="sticky top-0 z-50 bg-white/80 dark:bg-gray-950/80 backdrop-blur-xl border-b border-gray-200 dark:border-gray-800">
-      <div className="max-w-7xl mx-auto px-4">
-        <div className="flex items-center justify-between h-16">
-          <Link href="/" className="flex items-center gap-2 group">
-            <span className="text-2xl">🌍</span>
-            <span className="hidden sm:block text-lg font-bold bg-gradient-to-r from-primary-600 to-accent-500 bg-clip-text text-transparent">
-              AI Life Room
+    <header
+      style={{
+        position: 'sticky',
+        top: 0,
+        zIndex: 50,
+        background: '#0d1b2a',
+        borderBottom: '2px solid #4ecdc4',
+      }}
+    >
+      <div style={{ maxWidth: 1280, margin: '0 auto', padding: '0 16px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: 52 }}>
+          {/* Logo */}
+          <Link href="/" style={{ display: 'flex', alignItems: 'center', gap: 8, textDecoration: 'none' }}>
+            <span style={{ fontSize: 18 }}>🌍</span>
+            <span
+              style={{
+                fontFamily: PIXEL_FONT,
+                fontSize: 22,
+                color: '#4ecdc4',
+                letterSpacing: '0.08em',
+              }}
+            >
+              AI LIFE ROOM
             </span>
           </Link>
 
-          <nav className="flex items-center gap-1">
-            {navLinks.map(({ href, label, icon: Icon }) => (
-              <Link
-                key={href}
-                href={href}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isActive(href)
-                    ? 'bg-primary-50 dark:bg-primary-900/30 text-primary-600 dark:text-primary-400'
-                    : 'text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800'
-                }`}
-              >
-                <Icon className="w-4 h-4" />
-                <span className="hidden md:inline">{label}</span>
-              </Link>
-            ))}
+          {/* Nav */}
+          <nav style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+            {navLinks.map(({ href, label, icon: Icon }) => {
+              const active = isActive(href);
+              return (
+                <Link
+                  key={href}
+                  href={href}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '4px 10px',
+                    fontFamily: PIXEL_FONT,
+                    fontSize: 16,
+                    letterSpacing: '0.05em',
+                    textDecoration: 'none',
+                    border: active ? '2px solid #4ecdc4' : '2px solid transparent',
+                    background: active ? '#4ecdc4' : 'transparent',
+                    color: active ? '#0d1b2a' : '#4ecdc4',
+                    transition: 'all 0.1s',
+                  }}
+                >
+                  <Icon style={{ width: 14, height: 14 }} />
+                  <span className="hidden md:inline">{label}</span>
+                </Link>
+              );
+            })}
             <Link
               href="/?settings=1"
-              className="flex items-center px-3 py-2 rounded-lg text-sm font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
               title="Settings"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                padding: '4px 8px',
+                color: '#4ecdc4',
+                border: '2px solid transparent',
+                textDecoration: 'none',
+              }}
             >
-              <MdSettings className="w-4 h-4" />
+              <MdSettings style={{ width: 16, height: 16 }} />
             </Link>
-            <div className="ml-1">
-              <ThemeToggle />
-            </div>
           </nav>
         </div>
       </div>

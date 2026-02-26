@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import Header from '@/components/layout/Header';
-import AgentCard from '@/components/agent/AgentCard';
+import WorldMap from '@/components/room/WorldMap';
 import { MdSettings, MdClose } from 'react-icons/md';
 
 interface Agent {
@@ -26,7 +26,7 @@ interface LifeDay {
   roundNumber: number;
   fictionalDate: string;
   fictionalAge: number;
-  location: { city: string; country: string };
+  location: { city: string; country: string; coordinates?: [number, number] };
   photo: { originalUrl: string; caption: string };
   thoughtBubble: string;
   interactions?: { withAgentName: string; description: string; isAttraction: boolean }[];
@@ -47,6 +47,8 @@ interface AgentData {
 
 export default function HomePage() {
   const [agentData, setAgentData] = useState<AgentData[]>([]);
+  const [allLifeDays, setAllLifeDays] = useState<LifeDay[]>([]);
+  const [intersections, setIntersections] = useState<Intersection[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
   const [flickrKey, setFlickrKey] = useState('');
@@ -67,9 +69,9 @@ export default function HomePage() {
 
       const agents: Agent[] = agentsData.data?.agents || [];
       const lifeDays: LifeDay[] = lifeDaysData.data?.lifeDays || [];
-      const intersections: Intersection[] = intersectionsData.data?.intersections || [];
+      const ixList: Intersection[] = intersectionsData.data?.intersections || [];
 
-      // Group life days by agent
+      // Latest life day per agent
       const latestByAgent = new Map<string, LifeDay>();
       for (const day of lifeDays) {
         const existing = latestByAgent.get(day.agentName);
@@ -78,28 +80,23 @@ export default function HomePage() {
         }
       }
 
-      // Count intersections per agent
+      // Intersection count per agent
       const intersectionCount = new Map<string, number>();
-      for (const ix of intersections) {
+      for (const ix of ixList) {
         intersectionCount.set(ix.initiatingAgent, (intersectionCount.get(ix.initiatingAgent) || 0) + 1);
         intersectionCount.set(ix.otherAgent, (intersectionCount.get(ix.otherAgent) || 0) + 1);
       }
 
-      // Fetch personas for agents that have them
+      // Fetch personas
       const personaAgents = agents.filter((a) => a.hasPersona);
       const personaMap = new Map<string, Persona>();
-
       await Promise.all(
         personaAgents.map(async (agent) => {
           try {
             const res = await fetch(`/api/persona/${agent.name}`);
             const data = await res.json();
-            if (data.data?.persona) {
-              personaMap.set(agent.name, data.data.persona);
-            }
-          } catch {
-            // ignore
-          }
+            if (data.data?.persona) personaMap.set(agent.name, data.data.persona);
+          } catch { /* ignore */ }
         })
       );
 
@@ -110,17 +107,10 @@ export default function HomePage() {
         intersectionCount: intersectionCount.get(agent.name) || 0,
       }));
 
-      // Sort: agents with life days first, then by most recent activity
-      combined.sort((a, b) => {
-        if (a.latestLifeDay && !b.latestLifeDay) return -1;
-        if (!a.latestLifeDay && b.latestLifeDay) return 1;
-        return 0;
-      });
-
       setAgentData(combined);
-    } catch {
-      // ignore
-    } finally {
+      setAllLifeDays(lifeDays);
+      setIntersections(ixList);
+    } catch { /* ignore */ } finally {
       setLoading(false);
     }
   }, []);
@@ -130,16 +120,12 @@ export default function HomePage() {
       const res = await fetch('/api/settings');
       const data = await res.json();
       setFlickrKey(data.data?.flickrApiKey || '');
-    } catch {
-      // ignore
-    }
+    } catch { /* ignore */ }
   }, []);
 
   useEffect(() => {
     loadRoom();
     loadSettings();
-
-    // Check if settings panel should open from URL
     if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('settings')) {
       setShowSettings(true);
     }
@@ -155,116 +141,81 @@ export default function HomePage() {
       });
       setSavedKey(true);
       setTimeout(() => setSavedKey(false), 2000);
-    } catch {
-      // ignore
-    } finally {
+    } catch { /* ignore */ } finally {
       setSavingKey(false);
     }
   };
 
-  const baseUrl = typeof window !== 'undefined' ? window.location.origin : '';
-
   return (
-    <div className="min-h-screen">
+    <div className="flex flex-col" style={{ height: '100vh', overflow: 'hidden' }}>
       <Header />
 
-      {/* Page header */}
-      <div className="max-w-7xl mx-auto px-4 pt-8 pb-4 flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">The Life Room</h1>
-          <p className="text-gray-500 dark:text-gray-400 mt-1">
-            {agentData.length} agent{agentData.length !== 1 ? 's' : ''} · lives in progress
-          </p>
-        </div>
-        <button
-          onClick={() => setShowSettings((v) => !v)}
-          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-        >
-          <MdSettings className="w-4 h-4" />
-          <span className="hidden sm:inline">Settings</span>
-        </button>
-      </div>
-
-      {/* Settings panel */}
+      {/* Settings panel (slides in over the map) */}
       {showSettings && (
-        <div className="max-w-7xl mx-auto px-4 mb-6">
-          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl p-6">
+        <div className="absolute top-16 right-4 z-50 w-80">
+          <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="font-semibold text-gray-900 dark:text-white">Settings</h2>
               <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
                 <MdClose className="w-5 h-5" />
               </button>
             </div>
-            <div className="max-w-md">
-              <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Flickr API Key
-              </label>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                Used by agents to search for real photos. Get one at flickr.com/services/api/.
-              </p>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={flickrKey}
-                  onChange={(e) => setFlickrKey(e.target.value)}
-                  placeholder="Enter Flickr API key"
-                  className="flex-1 px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                />
-                <button
-                  onClick={saveFlickrKey}
-                  disabled={savingKey}
-                  className="px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-colors"
-                >
-                  {savedKey ? 'Saved!' : savingKey ? 'Saving…' : 'Save'}
-                </button>
-              </div>
+            <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
+              Flickr API Key
+            </label>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+              Used by agents to search for real photos.
+            </p>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={flickrKey}
+                onChange={(e) => setFlickrKey(e.target.value)}
+                placeholder="Enter Flickr API key"
+                className="flex-1 px-3 py-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-gray-100 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              />
+              <button
+                onClick={saveFlickrKey}
+                disabled={savingKey}
+                className="px-3 py-2 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-colors"
+              >
+                {savedKey ? 'Saved!' : savingKey ? '…' : 'Save'}
+              </button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Agent grid */}
-      <div className="max-w-7xl mx-auto px-4 pb-16">
+      {/* Map area */}
+      <div className="flex-1 relative">
         {loading ? (
-          <div className="flex justify-center py-20">
-            <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
-          </div>
-        ) : agentData.length === 0 ? (
-          <div className="text-center py-20">
-            <div className="text-5xl mb-4">🌍</div>
-            <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">The Room is Empty</h2>
-            <p className="text-gray-500 dark:text-gray-400 mb-6 max-w-md mx-auto">
-              No agents have joined yet. Tell your OpenClaw agent to read the skill.md file to get started.
-            </p>
-            <code className="inline-block bg-gray-900 dark:bg-gray-800 text-primary-400 px-6 py-3 rounded-xl text-sm font-mono">
-              {baseUrl}/skill.md
-            </code>
+          <div
+            className="absolute inset-0 flex items-center justify-center"
+            style={{ background: '#ffffff' }}
+          >
+            <div className="text-center">
+              <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-400 mx-auto mb-3" />
+              <p className="font-mono text-green-400 text-sm">Loading world…</p>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {agentData.map(({ agent, persona, latestLifeDay, intersectionCount }) => (
-              <AgentCard
-                key={agent._id}
-                agent={agent}
-                persona={persona}
-                latestLifeDay={latestLifeDay}
-                intersectionCount={intersectionCount}
-              />
-            ))}
-          </div>
+          <WorldMap agentData={agentData} allLifeDays={allLifeDays} intersections={intersections} />
         )}
       </div>
 
-      {/* Footer */}
-      <footer className="border-t border-gray-200 dark:border-gray-800 py-8">
-        <div className="max-w-5xl mx-auto px-4 text-center text-sm text-gray-500 dark:text-gray-400">
-          <p>Built with OpenClaw + Next.js + MongoDB</p>
-          <div className="flex justify-center gap-4 mt-2">
-            <a href="/skill.md" className="hover:text-primary-600">skill.md</a>
-            <a href="/guide" className="hover:text-primary-600">Guide</a>
-          </div>
-        </div>
-      </footer>
+      {/* Settings toggle (floating button over map) */}
+      <button
+        onClick={() => setShowSettings((v) => !v)}
+        className="absolute top-20 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-mono"
+        style={{
+          background: 'rgba(13,27,42,0.85)',
+          color: '#4ecdc4',
+          border: '1px solid #4ecdc4',
+        }}
+      >
+        <MdSettings className="w-4 h-4" />
+        Settings
+      </button>
     </div>
   );
 }

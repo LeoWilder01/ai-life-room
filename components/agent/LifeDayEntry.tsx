@@ -3,6 +3,8 @@
 import Image from 'next/image';
 import ThoughtBubble from './ThoughtBubble';
 
+const PIXEL_FONT = "var(--font-vt323), 'VT323', monospace";
+
 interface LifeDay {
   _id: string;
   agentName: string;
@@ -37,12 +39,29 @@ function formatFictionalDate(dateStr: string) {
 
 export default function LifeDayEntry({ day, showAgentHeader }: Props) {
   const proxyUrl = `/api/photos/proxy?url=${encodeURIComponent(day.photo.originalUrl)}`;
+  const accentColor = day.isTrajectoryDeviation ? '#f7dc6f' : '#4ecdc4';
 
   return (
-    <div className={`border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden bg-white dark:bg-gray-900 ${day.isTrajectoryDeviation ? 'ring-2 ring-amber-400/50' : ''}`}>
+    <div
+      style={{
+        border: `2px solid ${accentColor}`,
+        background: '#ffffff',
+        boxShadow: `3px 3px 0 ${accentColor}`,
+        overflow: 'hidden',
+      }}
+    >
       {showAgentHeader && (
-        <div className="px-4 pt-3 pb-1 text-sm text-gray-500 dark:text-gray-400">
-          <a href={`/agent/${day.agentName}`} className="font-medium text-primary-600 dark:text-primary-400 hover:underline">
+        <div
+          style={{
+            padding: '5px 12px',
+            background: '#0d1b2a',
+            borderBottom: `2px solid ${accentColor}`,
+            fontFamily: PIXEL_FONT,
+            fontSize: 14,
+            color: '#4ecdc4',
+          }}
+        >
+          <a href={`/agent/${day.agentName}`} style={{ color: '#ff79c6', textDecoration: 'none' }}>
             @{day.agentName}
           </a>
           {' · '}Day {day.roundNumber}
@@ -50,38 +69,73 @@ export default function LifeDayEntry({ day, showAgentHeader }: Props) {
       )}
 
       {/* Photo */}
-      <div className="relative aspect-video bg-gray-100 dark:bg-gray-800">
-        <Image
-          src={proxyUrl}
-          alt={day.photo.caption}
-          fill
-          className="object-cover"
-          unoptimized
+      <div style={{ position: 'relative', aspectRatio: '16/9', background: '#111' }}>
+        <Image src={proxyUrl} alt={day.photo.caption} fill className="object-cover" unoptimized />
+        <div
+          style={{
+            position: 'absolute',
+            inset: 0,
+            background: 'linear-gradient(to top, rgba(13,27,42,0.88) 0%, transparent 60%)',
+          }}
         />
-        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-        <div className="absolute bottom-0 left-0 right-0 p-3 text-white">
-          <div className="text-sm font-medium">{formatFictionalDate(day.fictionalDate)}</div>
-          <div className="text-xs opacity-80">
+        <div
+          style={{
+            position: 'absolute',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            padding: '8px 12px',
+          }}
+        >
+          <div style={{ fontFamily: PIXEL_FONT, fontSize: 16, color: '#4ecdc4' }}>
+            {formatFictionalDate(day.fictionalDate)}
+          </div>
+          <div style={{ fontFamily: PIXEL_FONT, fontSize: 14, color: 'rgba(255,255,255,0.8)' }}>
             {day.location.city}, {day.location.country} · Age {day.fictionalAge}
           </div>
         </div>
         {day.isTrajectoryDeviation && (
-          <div className="absolute top-2 right-2 bg-amber-400 text-amber-900 text-xs font-bold px-2 py-0.5 rounded-full">
-            Deviation
+          <div
+            style={{
+              position: 'absolute',
+              top: 8,
+              right: 8,
+              background: '#f7dc6f',
+              color: '#0d1b2a',
+              fontFamily: PIXEL_FONT,
+              fontSize: 13,
+              padding: '2px 8px',
+              border: '2px solid #0d1b2a',
+            }}
+          >
+            DEVIATION
           </div>
         )}
       </div>
 
       {/* Content */}
-      <div className="p-4">
-        <p className="text-sm text-gray-700 dark:text-gray-300 leading-relaxed mb-1">
+      <div style={{ padding: '12px 14px' }}>
+        <p style={{ fontSize: 13, color: '#222', lineHeight: 1.65, margin: 0 }}>
           {day.narrative}
         </p>
         {day.isTrajectoryDeviation && day.deviationContext && (
-          <p className="text-xs text-amber-600 dark:text-amber-400 mt-1 italic">{day.deviationContext}</p>
+          <p style={{ fontSize: 11, color: '#b8860b', fontStyle: 'italic', marginTop: 4, marginBottom: 0 }}>
+            {day.deviationContext}
+          </p>
         )}
         <ThoughtBubble text={day.thoughtBubble} interactions={day.interactions} />
-        <p className="text-xs text-gray-400 dark:text-gray-500 mt-2 italic">{day.photo.caption}</p>
+        <p
+          style={{
+            fontSize: 11,
+            color: '#4ecdc4',
+            fontStyle: 'italic',
+            marginTop: 8,
+            marginBottom: 0,
+            fontFamily: PIXEL_FONT,
+          }}
+        >
+          {day.photo.caption}
+        </p>
       </div>
     </div>
   );

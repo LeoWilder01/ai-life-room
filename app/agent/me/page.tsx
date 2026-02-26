@@ -3,9 +3,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import Header from '@/components/layout/Header';
-import Card from '@/components/ui/Card';
-import Button from '@/components/ui/Button';
 
+const PIXEL_FONT = "var(--font-vt323), 'VT323', monospace";
 const LS_KEY = 'liferoom_agent_key';
 
 interface AgentInfo {
@@ -18,31 +17,51 @@ interface AgentInfo {
 type SimStatus = 'idle' | 'running' | 'done' | 'error';
 type SetupMode = 'auto' | 'create' | 'existing';
 
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  padding: '8px 12px',
+  border: '2px solid #4ecdc4',
+  background: '#ffffff',
+  fontFamily: 'monospace',
+  fontSize: 13,
+  color: '#0d1b2a',
+  outline: 'none',
+  boxSizing: 'border-box',
+};
+
+const labelStyle: React.CSSProperties = {
+  display: 'block',
+  fontFamily: PIXEL_FONT,
+  fontSize: 15,
+  color: '#0d1b2a',
+  marginBottom: 4,
+  letterSpacing: '0.04em',
+};
+
 export default function AgentMePage() {
   const [savedKey, setSavedKey] = useState<string | null>(null);
   const [setupMode, setSetupMode] = useState<SetupMode>('auto');
 
-  // 创建新 agent 用
   const [newName, setNewName] = useState('');
   const [newDesc, setNewDesc] = useState('');
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState('');
 
-  // 输入已有 key 用
   const [inputKey, setInputKey] = useState('');
   const [validating, setValidating] = useState(false);
   const [validateError, setValidateError] = useState('');
 
-  // agent 状态
   const [agent, setAgent] = useState<AgentInfo | null>(null);
   const [agentKey, setAgentKey] = useState('');
 
-  // 模拟状态
+  const [newlyCreatedKey, setNewlyCreatedKey] = useState('');
+  const [copied, setCopied] = useState(false);
+
   const [simStatus, setSimStatus] = useState<SimStatus>('idle');
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [simResult, setSimResult] = useState<any>(null);
   const [simError, setSimError] = useState('');
 
-  // ── 启动时检查 localStorage ──────────────────────────────
   useEffect(() => {
     const stored = localStorage.getItem(LS_KEY);
     if (stored) {
@@ -59,14 +78,12 @@ export default function AgentMePage() {
       setAgentKey(key);
       setAgent(info);
     } else {
-      // 存的 key 失效了，清掉重新来
       localStorage.removeItem(LS_KEY);
       setSavedKey(null);
       setSetupMode('create');
     }
   };
 
-  // ── 调用 /api/agents/me 验证 key ─────────────────────────
   const fetchAgentInfo = async (key: string): Promise<AgentInfo | null> => {
     try {
       const res = await fetch('/api/agents/me', {
@@ -79,7 +96,6 @@ export default function AgentMePage() {
     }
   };
 
-  // ── 创建新 agent ──────────────────────────────────────────
   const handleCreate = async () => {
     if (!newName.trim()) return;
     setCreating(true);
@@ -99,6 +115,7 @@ export default function AgentMePage() {
         localStorage.setItem(LS_KEY, key);
         setSavedKey(key);
         setAgentKey(key);
+        setNewlyCreatedKey(key);
         const info = await fetchAgentInfo(key);
         setAgent(info);
       } else {
@@ -111,7 +128,6 @@ export default function AgentMePage() {
     }
   };
 
-  // ── 验证已有 key ──────────────────────────────────────────
   const handleValidate = async () => {
     if (!inputKey.trim()) return;
     setValidating(true);
@@ -128,7 +144,6 @@ export default function AgentMePage() {
     setValidating(false);
   };
 
-  // ── 忘记这台设备的 key ────────────────────────────────────
   const handleForget = () => {
     localStorage.removeItem(LS_KEY);
     setSavedKey(null);
@@ -139,7 +154,6 @@ export default function AgentMePage() {
     setSimResult(null);
   };
 
-  // ── 触发一轮模拟 ──────────────────────────────────────────
   const handleSimulate = async () => {
     setSimStatus('running');
     setSimResult(null);
@@ -153,7 +167,7 @@ export default function AgentMePage() {
       if (data.success) {
         setSimStatus('done');
         setSimResult(data.data);
-        setAgent(prev => prev ? { ...prev, hasPersona: true } : prev);
+        setAgent((prev) => (prev ? { ...prev, hasPersona: true } : prev));
       } else {
         setSimStatus('error');
         setSimError(data.error || 'Simulation failed');
@@ -164,251 +178,472 @@ export default function AgentMePage() {
     }
   };
 
-  // ── 渲染 ──────────────────────────────────────────────────
-
-  // 有 savedKey 但还在 autoValidate 中
+  // Loading while auto-validating stored key
   if (savedKey && !agent && setupMode === 'auto') {
     return (
-      <div className="min-h-screen">
+      <div style={{ minHeight: '100vh', background: '#f8f9fa' }}>
         <Header />
-        <div className="flex justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-600" />
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 80 }}>
+          <p style={{ fontFamily: PIXEL_FONT, fontSize: 20, color: '#4ecdc4' }}>LOADING...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen">
+    <div style={{ minHeight: '100vh', background: '#f8f9fa' }}>
       <Header />
-      <div className="max-w-lg mx-auto px-4 py-12">
+      <div style={{ maxWidth: 520, margin: '0 auto', padding: '24px 16px' }}>
 
-        {/* ── 设置面板（还没有 agent） ── */}
+        {/* Page title banner */}
+        <div
+          style={{
+            background: '#0d1b2a',
+            border: '2px solid #4ecdc4',
+            padding: '16px 24px',
+            marginBottom: 20,
+            boxShadow: '4px 4px 0 #4ecdc4',
+          }}
+        >
+          <h1
+            style={{
+              fontFamily: PIXEL_FONT,
+              fontSize: 32,
+              color: '#4ecdc4',
+              margin: 0,
+              lineHeight: 1.1,
+            }}
+          >
+            MY AGENT
+          </h1>
+          <p style={{ fontSize: 13, color: '#a0b8c8', margin: '6px 0 0' }}>
+            {agent ? `Logged in as @${agent.name}` : 'Create a new agent or connect an existing one.'}
+          </p>
+        </div>
+
+        {/* ── Setup panel (no agent yet) ── */}
         {!agent && (
-          <Card className="p-8">
-            <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-1">My Agent</h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-              Create a new agent or connect an existing one.
-            </p>
-
-            {/* 标签切换 */}
-            <div className="flex gap-2 mb-6">
-              <button
-                onClick={() => { setSetupMode('create'); setCreateError(''); }}
-                className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${
-                  setupMode === 'create'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                }`}
-              >
-                Create new
-              </button>
-              <button
-                onClick={() => { setSetupMode('existing'); setValidateError(''); }}
-                className={`flex-1 py-2 rounded-xl text-sm font-medium transition-colors ${
-                  setupMode === 'existing'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
-                }`}
-              >
-                I have a key
-              </button>
+          <section style={{ border: '2px solid #000', background: '#ffffff' }}>
+            {/* Tab bar */}
+            <div style={{ display: 'flex', borderBottom: '2px solid #4ecdc4' }}>
+              {(['create', 'existing'] as const).map((mode) => {
+                const active = setupMode === mode;
+                const label = mode === 'create' ? 'CREATE NEW' : 'I HAVE A KEY';
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => {
+                      setSetupMode(mode);
+                      setCreateError('');
+                      setValidateError('');
+                    }}
+                    style={{
+                      flex: 1,
+                      padding: '10px 0',
+                      fontFamily: PIXEL_FONT,
+                      fontSize: 16,
+                      letterSpacing: '0.05em',
+                      border: 'none',
+                      borderRight: mode === 'create' ? '2px solid #4ecdc4' : 'none',
+                      background: active ? '#0d1b2a' : '#ffffff',
+                      color: active ? '#4ecdc4' : '#888',
+                      cursor: 'pointer',
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
             </div>
 
-            {/* 创建新 agent */}
-            {setupMode === 'create' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Agent name <span className="text-gray-400">(letters, numbers, _ -)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={newName}
-                    onChange={e => setNewName(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleCreate()}
-                    placeholder="e.g. MyAgent"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
+            <div style={{ padding: '20px' }}>
+              {/* Create new agent */}
+              {setupMode === 'create' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div>
+                    <label style={labelStyle}>
+                      Agent name{' '}
+                      <span style={{ color: '#999', fontSize: 12, fontFamily: 'sans-serif' }}>
+                        (letters, numbers, _ -)
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newName}
+                      onChange={(e) => setNewName(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleCreate()}
+                      placeholder="e.g. MyAgent"
+                      style={inputStyle}
+                    />
+                  </div>
+                  <div>
+                    <label style={labelStyle}>
+                      Description{' '}
+                      <span style={{ color: '#999', fontSize: 12, fontFamily: 'sans-serif' }}>
+                        (optional)
+                      </span>
+                    </label>
+                    <input
+                      type="text"
+                      value={newDesc}
+                      onChange={(e) => setNewDesc(e.target.value)}
+                      placeholder="A brief description"
+                      style={inputStyle}
+                    />
+                  </div>
+                  {createError && (
+                    <p style={{ fontFamily: PIXEL_FONT, fontSize: 14, color: '#ff6b6b', margin: 0 }}>
+                      {createError}
+                    </p>
+                  )}
+                  <PixelButton
+                    onClick={handleCreate}
+                    disabled={creating || !newName.trim()}
+                  >
+                    {creating ? 'CREATING…' : 'CREATE AGENT'}
+                  </PixelButton>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    Description <span className="text-gray-400">(optional)</span>
-                  </label>
-                  <input
-                    type="text"
-                    value={newDesc}
-                    onChange={e => setNewDesc(e.target.value)}
-                    placeholder="A brief description"
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
-                </div>
-                {createError && <p className="text-red-500 text-sm">{createError}</p>}
-                <Button
-                  onClick={handleCreate}
-                  disabled={creating || !newName.trim()}
-                  className="w-full"
-                  size="lg"
-                >
-                  {creating ? 'Creating…' : 'Create Agent'}
-                </Button>
-              </div>
-            )}
+              )}
 
-            {/* 已有 key */}
-            {setupMode === 'existing' && (
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                    API Key
-                  </label>
-                  <input
-                    type="text"
-                    value={inputKey}
-                    onChange={e => setInputKey(e.target.value)}
-                    onKeyDown={e => e.key === 'Enter' && handleValidate()}
-                    placeholder="clawmatch_..."
-                    className="w-full px-4 py-2.5 rounded-xl border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-primary-500 focus:border-transparent"
-                  />
+              {/* Connect existing key */}
+              {setupMode === 'existing' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+                  <div>
+                    <label style={labelStyle}>API Key</label>
+                    <input
+                      type="text"
+                      value={inputKey}
+                      onChange={(e) => setInputKey(e.target.value)}
+                      onKeyDown={(e) => e.key === 'Enter' && handleValidate()}
+                      placeholder="clawmatch_..."
+                      style={inputStyle}
+                    />
+                  </div>
+                  {validateError && (
+                    <p style={{ fontFamily: PIXEL_FONT, fontSize: 14, color: '#ff6b6b', margin: 0 }}>
+                      {validateError}
+                    </p>
+                  )}
+                  <PixelButton
+                    onClick={handleValidate}
+                    disabled={validating || !inputKey.trim()}
+                  >
+                    {validating ? 'CHECKING…' : 'CONNECT'}
+                  </PixelButton>
                 </div>
-                {validateError && <p className="text-red-500 text-sm">{validateError}</p>}
-                <Button
-                  onClick={handleValidate}
-                  disabled={validating || !inputKey.trim()}
-                  className="w-full"
-                  size="lg"
-                >
-                  {validating ? 'Checking…' : 'Connect'}
-                </Button>
-              </div>
-            )}
-          </Card>
+              )}
+            </div>
+          </section>
         )}
 
-        {/* ── Agent 控制面板 ── */}
+        {/* ── Agent control panel ── */}
         {agent && (
-          <Card className="p-8">
-            {/* Header */}
-            <div className="flex items-start justify-between mb-6">
-              <div>
-                <p className="text-xs text-gray-400 dark:text-gray-500 mb-0.5">Logged in as</p>
-                <h2 className="text-lg font-bold text-gray-900 dark:text-white">@{agent.name}</h2>
-                <p className="text-sm text-gray-500 dark:text-gray-400">{agent.description}</p>
-              </div>
-              <div className="flex flex-col items-end gap-2">
-                <span className={`text-xs px-2 py-1 rounded-full font-medium ${
-                  agent.hasPersona
-                    ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
-                    : 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
-                }`}>
-                  {agent.hasPersona ? 'Has persona' : 'No persona yet'}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+
+            {/* API key reveal — shown only right after creation */}
+            {newlyCreatedKey && (
+              <section style={{ border: '2px solid #f7dc6f', background: '#ffffff', boxShadow: '3px 3px 0 #f7dc6f' }}>
+                <div style={{ background: '#0d1b2a', padding: '8px 16px', borderBottom: '2px solid #f7dc6f', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <h2 style={{ fontFamily: PIXEL_FONT, fontSize: 20, color: '#f7dc6f', margin: 0, letterSpacing: '0.08em' }}>
+                    YOUR API KEY
+                  </h2>
+                  <button
+                    onClick={() => setNewlyCreatedKey('')}
+                    style={{ fontFamily: PIXEL_FONT, fontSize: 14, color: '#888', background: 'none', border: 'none', cursor: 'pointer' }}
+                  >
+                    [DISMISS]
+                  </button>
+                </div>
+                <div style={{ padding: '14px 16px' }}>
+                  <p style={{ fontSize: 12, color: '#b8860b', margin: '0 0 10px', lineHeight: 1.5 }}>
+                    ⚠ Save this key — it is only shown once. If you lose it, you can reconnect on any device using this page.
+                  </p>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+                    <code
+                      style={{
+                        flex: 1,
+                        display: 'block',
+                        background: '#0d1b2a',
+                        color: '#f7dc6f',
+                        padding: '8px 12px',
+                        fontFamily: 'monospace',
+                        fontSize: 13,
+                        wordBreak: 'break-all',
+                        border: '2px solid #f7dc6f',
+                        userSelect: 'all',
+                      }}
+                    >
+                      {newlyCreatedKey}
+                    </code>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(newlyCreatedKey);
+                        setCopied(true);
+                        setTimeout(() => setCopied(false), 2000);
+                      }}
+                      style={{
+                        fontFamily: PIXEL_FONT,
+                        fontSize: 15,
+                        padding: '0 14px',
+                        background: copied ? '#96ceb4' : '#f7dc6f',
+                        color: '#0d1b2a',
+                        border: '2px solid #0d1b2a',
+                        boxShadow: copied ? 'none' : '2px 2px 0 #0d1b2a',
+                        cursor: 'pointer',
+                        flexShrink: 0,
+                        transition: 'all 0.1s',
+                      }}
+                    >
+                      {copied ? 'COPIED!' : 'COPY'}
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            {/* Agent info section */}
+            <section style={{ border: '2px solid #000', background: '#ffffff' }}>
+              <div style={{ background: '#0d1b2a', padding: '8px 16px', borderBottom: '2px solid #4ecdc4', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h2 style={{ fontFamily: PIXEL_FONT, fontSize: 20, color: '#4ecdc4', margin: 0, letterSpacing: '0.08em' }}>
+                  @{agent.name}
+                </h2>
+                <span
+                  style={{
+                    fontFamily: PIXEL_FONT,
+                    fontSize: 14,
+                    padding: '2px 8px',
+                    border: agent.hasPersona ? '2px solid #96ceb4' : '2px solid #f7dc6f',
+                    background: agent.hasPersona ? 'rgba(150,206,180,0.15)' : 'rgba(247,220,111,0.15)',
+                    color: agent.hasPersona ? '#96ceb4' : '#f7dc6f',
+                  }}
+                >
+                  {agent.hasPersona ? 'HAS PERSONA' : 'NO PERSONA'}
                 </span>
+              </div>
+              <div style={{ padding: '12px 16px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <p style={{ fontSize: 13, color: '#555', margin: 0 }}>{agent.description}</p>
                 <button
                   onClick={handleForget}
-                  className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 underline"
+                  style={{
+                    fontFamily: PIXEL_FONT,
+                    fontSize: 13,
+                    color: '#888',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    flexShrink: 0,
+                    marginLeft: 12,
+                  }}
                 >
-                  Forget on this device
+                  Forget
                 </button>
               </div>
-            </div>
+            </section>
 
-            {/* Run 按钮 */}
-            <div className="border-t border-gray-100 dark:border-gray-800 pt-6">
-              <p className="text-sm text-gray-500 dark:text-gray-400 mb-4">
-                {agent.hasPersona
-                  ? 'Generate one new life day via LLM + Brave image search.'
-                  : 'First run: LLM creates a persona, then writes the first life day.'}
-              </p>
-
-              <Button
-                onClick={handleSimulate}
-                disabled={simStatus === 'running'}
-                className="w-full"
-                size="lg"
-              >
-                {simStatus === 'running'
-                  ? '⏳ Running… (20–40s)'
-                  : simStatus === 'done'
-                  ? '▶ Run Another Round'
-                  : '▶ Run a Round'}
-              </Button>
-            </div>
-
-            {/* 进度提示 */}
-            {simStatus === 'running' && (
-              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-xl text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2">
-                <div className="w-4 h-4 border-2 border-blue-500 border-t-transparent rounded-full animate-spin shrink-0" />
-                LLM generating story → Brave searching photo…
+            {/* Run section */}
+            <section style={{ border: '2px solid #000', background: '#ffffff' }}>
+              <div style={{ background: '#0d1b2a', padding: '8px 16px', borderBottom: '2px solid #4ecdc4' }}>
+                <h2 style={{ fontFamily: PIXEL_FONT, fontSize: 20, color: '#4ecdc4', margin: 0, letterSpacing: '0.08em' }}>
+                  RUN A ROUND
+                </h2>
               </div>
-            )}
+              <div style={{ padding: '16px' }}>
+                <p style={{ fontSize: 13, color: '#555', margin: '0 0 14px', lineHeight: 1.5 }}>
+                  {agent.hasPersona
+                    ? 'Generate one new life day via LLM + Brave image search.'
+                    : 'First run: LLM creates a persona, then writes the first life day.'}
+                </p>
 
-            {/* 错误 */}
-            {simStatus === 'error' && (
-              <div className="mt-4 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl text-sm text-red-700 dark:text-red-400">
-                {simError}
-              </div>
-            )}
+                <PixelButton
+                  onClick={handleSimulate}
+                  disabled={simStatus === 'running'}
+                >
+                  {simStatus === 'running'
+                    ? '⏳ RUNNING… (20–40s)'
+                    : simStatus === 'done'
+                    ? '▶ RUN ANOTHER ROUND'
+                    : '▶ RUN A ROUND'}
+                </PixelButton>
 
-            {/* 成功结果 */}
-            {simStatus === 'done' && simResult && (
-              <div className="mt-5 space-y-3">
-                {simResult.isNewPersona && (
-                  <div className="p-3 bg-emerald-50 dark:bg-emerald-900/20 rounded-xl text-sm text-emerald-700 dark:text-emerald-400">
-                    ✓ Persona created: <strong>{simResult.persona?.displayName}</strong>
-                    {' '}— {simResult.persona?.birthPlace?.city}, {simResult.persona?.birthPlace?.country}
+                {/* Running state */}
+                {simStatus === 'running' && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: '10px 14px',
+                      background: '#0d1b2a',
+                      border: '2px solid #45b7d1',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 10,
+                    }}
+                  >
+                    <div
+                      style={{
+                        width: 14,
+                        height: 14,
+                        border: '2px solid #45b7d1',
+                        borderTopColor: 'transparent',
+                        borderRadius: '50%',
+                        flexShrink: 0,
+                        animation: 'spin 0.8s linear infinite',
+                      }}
+                    />
+                    <span style={{ fontFamily: PIXEL_FONT, fontSize: 14, color: '#45b7d1' }}>
+                      LLM generating story → Brave searching photo…
+                    </span>
                   </div>
                 )}
 
-                <div className="p-4 bg-gray-50 dark:bg-gray-800/60 rounded-xl text-sm space-y-2">
-                  <div className="flex justify-between items-baseline">
-                    <span className="font-semibold text-gray-900 dark:text-white">
-                      Day {simResult.lifeDay?.roundNumber}
-                    </span>
-                    <span className="text-xs text-gray-400">
-                      {simResult.lifeDay?.fictionalDate
-                        ? new Date(simResult.lifeDay.fictionalDate).toLocaleDateString('en-US', {
-                            year: 'numeric', month: 'long', day: 'numeric',
-                          })
-                        : ''}
-                    </span>
+                {/* Error state */}
+                {simStatus === 'error' && (
+                  <div
+                    style={{
+                      marginTop: 12,
+                      padding: '10px 14px',
+                      background: 'rgba(255,107,107,0.08)',
+                      border: '2px solid #ff6b6b',
+                    }}
+                  >
+                    <p style={{ fontFamily: PIXEL_FONT, fontSize: 14, color: '#ff6b6b', margin: 0 }}>
+                      {simError}
+                    </p>
                   </div>
-                  <p className="text-xs text-gray-500">
-                    Age {simResult.lifeDay?.fictionalAge} · {simResult.lifeDay?.location?.city}, {simResult.lifeDay?.location?.country}
-                  </p>
-                  <p className="text-gray-700 dark:text-gray-300 leading-relaxed">
-                    {simResult.lifeDay?.narrative}
-                  </p>
-                  <p className="text-gray-400 italic text-xs">
-                    💭 {simResult.lifeDay?.thoughtBubble}
-                  </p>
-                  <p className="text-gray-400 text-xs">
-                    📷 {simResult.photoSource === 'brave_search' ? 'Brave Search' : 'Placeholder'} — {simResult.lifeDay?.photo?.caption}
-                  </p>
-                </div>
+                )}
 
-                <Link
-                  href={`/agent/${agent.name}`}
-                  className="block text-center text-sm text-primary-600 dark:text-primary-400 hover:underline pt-1"
-                >
-                  View full timeline →
-                </Link>
-              </div>
-            )}
+                {/* Success result */}
+                {simStatus === 'done' && simResult && (
+                  <div style={{ marginTop: 14, display: 'flex', flexDirection: 'column', gap: 10 }}>
+                    {simResult.isNewPersona && (
+                      <div
+                        style={{
+                          padding: '10px 14px',
+                          background: 'rgba(150,206,180,0.1)',
+                          border: '2px solid #96ceb4',
+                        }}
+                      >
+                        <p style={{ fontFamily: PIXEL_FONT, fontSize: 14, color: '#96ceb4', margin: 0 }}>
+                          ✓ PERSONA CREATED:{' '}
+                          <strong>{simResult.persona?.displayName}</strong>
+                          {' '}— {simResult.persona?.birthPlace?.city},{' '}
+                          {simResult.persona?.birthPlace?.country}
+                        </p>
+                      </div>
+                    )}
 
-            {/* 快速链接 */}
-            {simStatus === 'idle' && (
-              <div className="mt-4 pt-4 border-t border-gray-100 dark:border-gray-800">
-                <Link
-                  href={`/agent/${agent.name}`}
-                  className="text-sm text-primary-600 dark:text-primary-400 hover:underline"
-                >
-                  View timeline →
-                </Link>
+                    <div
+                      style={{
+                        padding: '12px 14px',
+                        background: '#f8f9fa',
+                        border: '2px solid #4ecdc4',
+                      }}
+                    >
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 4 }}>
+                        <span style={{ fontFamily: PIXEL_FONT, fontSize: 16, color: '#0d1b2a' }}>
+                          Day {simResult.lifeDay?.roundNumber}
+                        </span>
+                        <span style={{ fontSize: 11, color: '#888' }}>
+                          {simResult.lifeDay?.fictionalDate
+                            ? new Date(simResult.lifeDay.fictionalDate).toLocaleDateString('en-US', {
+                                year: 'numeric',
+                                month: 'long',
+                                day: 'numeric',
+                              })
+                            : ''}
+                        </span>
+                      </div>
+                      <p style={{ fontSize: 11, color: '#4ecdc4', fontFamily: PIXEL_FONT, margin: '0 0 6px' }}>
+                        Age {simResult.lifeDay?.fictionalAge} · {simResult.lifeDay?.location?.city},{' '}
+                        {simResult.lifeDay?.location?.country}
+                      </p>
+                      <p style={{ fontSize: 13, color: '#333', lineHeight: 1.6, margin: '0 0 6px' }}>
+                        {simResult.lifeDay?.narrative}
+                      </p>
+                      <p style={{ fontSize: 12, color: '#888', fontStyle: 'italic', margin: '0 0 4px' }}>
+                        💭 {simResult.lifeDay?.thoughtBubble}
+                      </p>
+                      <p style={{ fontSize: 11, color: '#aaa', margin: 0 }}>
+                        📷{' '}
+                        {simResult.photoSource === 'brave_search' ? 'Brave Search' : 'Placeholder'}{' '}
+                        — {simResult.lifeDay?.photo?.caption}
+                      </p>
+                    </div>
+
+                    <Link
+                      href={`/agent/${agent.name}`}
+                      style={{
+                        display: 'block',
+                        textAlign: 'center',
+                        fontFamily: PIXEL_FONT,
+                        fontSize: 16,
+                        color: '#ff79c6',
+                        textDecoration: 'none',
+                        padding: '6px 0',
+                      }}
+                    >
+                      VIEW FULL TIMELINE →
+                    </Link>
+                  </div>
+                )}
+
+                {/* Idle quick link */}
+                {simStatus === 'idle' && (
+                  <div style={{ marginTop: 12, paddingTop: 12, borderTop: '1px solid #e8e8e8' }}>
+                    <Link
+                      href={`/agent/${agent.name}`}
+                      style={{
+                        fontFamily: PIXEL_FONT,
+                        fontSize: 15,
+                        color: '#4ecdc4',
+                        textDecoration: 'none',
+                      }}
+                    >
+                      View timeline →
+                    </Link>
+                  </div>
+                )}
               </div>
-            )}
-          </Card>
+            </section>
+          </div>
         )}
       </div>
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+      `}</style>
     </div>
+  );
+}
+
+function PixelButton({
+  onClick,
+  disabled,
+  children,
+}: {
+  onClick: () => void;
+  disabled?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      style={{
+        width: '100%',
+        padding: '10px 0',
+        fontFamily: PIXEL_FONT,
+        fontSize: 18,
+        letterSpacing: '0.06em',
+        background: disabled ? '#ccc' : '#4ecdc4',
+        color: disabled ? '#888' : '#0d1b2a',
+        border: `2px solid ${disabled ? '#aaa' : '#0d1b2a'}`,
+        boxShadow: disabled ? 'none' : '3px 3px 0 #0d1b2a',
+        cursor: disabled ? 'not-allowed' : 'pointer',
+        transition: 'all 0.1s',
+      }}
+    >
+      {children}
+    </button>
   );
 }

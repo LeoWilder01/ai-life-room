@@ -1,11 +1,41 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import type { ReactNode } from 'react';
 import { useParams } from 'next/navigation';
 import Image from 'next/image';
 import Header from '@/components/layout/Header';
 import LifeDayEntry from '@/components/agent/LifeDayEntry';
 import LifeFramework from '@/components/agent/LifeFramework';
+
+const PIXEL_FONT = "var(--font-vt323), 'VT323', monospace";
+
+function Section({ title, children }: { title: ReactNode; children: ReactNode }) {
+  return (
+    <section style={{ border: '2px solid #000', background: '#ffffff' }}>
+      <div
+        style={{
+          background: '#0d1b2a',
+          padding: '8px 16px',
+          borderBottom: '2px solid #4ecdc4',
+        }}
+      >
+        <h2
+          style={{
+            fontFamily: PIXEL_FONT,
+            fontSize: 20,
+            color: '#4ecdc4',
+            margin: 0,
+            letterSpacing: '0.08em',
+          }}
+        >
+          {title}
+        </h2>
+      </div>
+      <div style={{ padding: '16px' }}>{children}</div>
+    </section>
+  );
+}
 
 interface Persona {
   displayName: string;
@@ -77,7 +107,7 @@ export default function AgentPage() {
     ])
       .then(([personaData, lifeDaysData, intersectionsData]) => {
         setPersona(personaData.data?.persona || null);
-        setLifeDays((lifeDaysData.data?.lifeDays || []).reverse()); // most recent first
+        setLifeDays((lifeDaysData.data?.lifeDays || []).reverse());
         setIntersections(intersectionsData.data?.intersections || []);
       })
       .catch(() => setError('Failed to load agent data'))
@@ -88,10 +118,10 @@ export default function AgentPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen">
+      <div style={{ minHeight: '100vh', background: '#f8f9fa' }}>
         <Header />
-        <div className="flex justify-center py-20">
-          <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-primary-600" />
+        <div style={{ display: 'flex', justifyContent: 'center', paddingTop: 80 }}>
+          <p style={{ fontFamily: PIXEL_FONT, fontSize: 20, color: '#4ecdc4' }}>LOADING...</p>
         </div>
       </div>
     );
@@ -99,123 +129,193 @@ export default function AgentPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen">
+      <div style={{ minHeight: '100vh', background: '#f8f9fa' }}>
         <Header />
-        <div className="max-w-2xl mx-auto px-4 py-20 text-center">
-          <p className="text-red-500">{error}</p>
+        <div style={{ maxWidth: 600, margin: '0 auto', padding: '80px 16px', textAlign: 'center' }}>
+          <p style={{ fontFamily: PIXEL_FONT, fontSize: 18, color: '#ff6b6b' }}>{error}</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen">
+    <div style={{ minHeight: '100vh', background: '#f8f9fa' }}>
       <Header />
-      <div className="max-w-4xl mx-auto px-4 py-8">
-        {/* Persona header */}
-        <div className="flex items-start gap-5 mb-8">
-          <div className="relative w-20 h-20 rounded-full overflow-hidden bg-gray-100 dark:bg-gray-800 shrink-0">
+      <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
+
+        {/* Persona banner — same style as guide's title banner */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: 20,
+            marginBottom: 20,
+            background: '#0d1b2a',
+            border: '2px solid #4ecdc4',
+            padding: '16px 20px',
+            boxShadow: '4px 4px 0 #4ecdc4',
+          }}
+        >
+          {/* Avatar */}
+          <div
+            style={{
+              width: 72,
+              height: 72,
+              border: '3px solid #4ecdc4',
+              flexShrink: 0,
+              position: 'relative',
+              overflow: 'hidden',
+            }}
+          >
             <Image src={avatarUrl} alt={agentName} fill className="object-cover" unoptimized />
           </div>
-          <div className="flex-1 min-w-0">
+
+          {/* Info */}
+          <div style={{ flex: 1, minWidth: 0 }}>
             {persona ? (
               <>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">{persona.displayName}</h1>
-                <p className="text-gray-500 dark:text-gray-400 text-sm">@{agentName}</p>
-                <p className="text-sm text-gray-600 dark:text-gray-300 mt-1">
+                <h1
+                  style={{
+                    fontFamily: PIXEL_FONT,
+                    fontSize: 28,
+                    color: '#4ecdc4',
+                    margin: 0,
+                    lineHeight: 1.1,
+                  }}
+                >
+                  {persona.displayName}
+                </h1>
+                <p style={{ fontFamily: PIXEL_FONT, fontSize: 16, color: '#ff79c6', margin: '2px 0' }}>
+                  @{agentName}
+                </p>
+                <p style={{ fontSize: 12, color: '#a0b8c8', margin: '4px 0 0' }}>
                   Born{' '}
                   {new Date(persona.birthDate).toLocaleDateString('en-US', {
                     year: 'numeric',
                     month: 'long',
                     day: 'numeric',
                   })}{' '}
-                  in <strong>{persona.birthPlace.city}</strong>, {persona.birthPlace.country}
+                  in <strong style={{ color: '#ffffff' }}>{persona.birthPlace.city}</strong>,{' '}
+                  {persona.birthPlace.country}
                 </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mt-1 italic">
+                <p style={{ fontSize: 11, color: '#7a9aaa', margin: '2px 0 0', fontStyle: 'italic' }}>
                   {persona.birthPlace.placeDescription}
                 </p>
               </>
             ) : (
               <>
-                <h1 className="text-2xl font-bold text-gray-900 dark:text-white">@{agentName}</h1>
-                <p className="text-gray-400 dark:text-gray-500 text-sm mt-1 italic">No persona yet</p>
+                <h1 style={{ fontFamily: PIXEL_FONT, fontSize: 28, color: '#4ecdc4', margin: 0 }}>
+                  @{agentName}
+                </h1>
+                <p style={{ fontSize: 12, color: '#7a9aaa', fontStyle: 'italic', margin: '4px 0 0' }}>
+                  No persona yet
+                </p>
               </>
             )}
           </div>
         </div>
 
-        <div className="grid md:grid-cols-3 gap-8">
-          {/* Left: framework + intersections */}
-          <div className="md:col-span-1 space-y-8">
+        {/* Two-column body */}
+        <div className="grid md:grid-cols-3 gap-4">
+
+          {/* Left column */}
+          <div className="md:col-span-1" style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             {persona && (
-              <section>
-                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
-                  Life Framework{' '}
-                  {persona.frameworkVersion > 1 && (
-                    <span className="text-amber-500">v{persona.frameworkVersion}</span>
-                  )}
-                </h2>
+              <Section
+                title={
+                  <>
+                    LIFE FRAMEWORK
+                    {persona.frameworkVersion > 1 && (
+                      <span style={{ color: '#f7dc6f', marginLeft: 8, fontSize: 16 }}>
+                        v{persona.frameworkVersion}
+                      </span>
+                    )}
+                  </>
+                }
+              >
                 <LifeFramework
                   framework={persona.lifeFramework}
                   history={persona.frameworkHistory}
                 />
-              </section>
+              </Section>
             )}
 
             {intersections.length > 0 && (
-              <section>
-                <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
-                  Crossings ({intersections.length})
-                </h2>
-                <div className="space-y-3">
+              <Section title={`CROSSINGS (${intersections.length})`}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {intersections.map((ix) => {
-                    const other = ix.initiatingAgent === agentName ? ix.otherAgent : ix.initiatingAgent;
+                    const other =
+                      ix.initiatingAgent === agentName ? ix.otherAgent : ix.initiatingAgent;
                     return (
                       <div
                         key={ix._id}
-                        className="border border-gray-200 dark:border-gray-700 rounded-xl p-3 bg-white dark:bg-gray-900"
+                        style={{
+                          border: '2px solid #4ecdc4',
+                          padding: '8px 10px',
+                          background: '#f8f9fa',
+                        }}
                       >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xs capitalize text-gray-400">{ix.type}</span>
-                          <span className="text-xs text-gray-300 dark:text-gray-600">·</span>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 8,
+                            marginBottom: 4,
+                            flexWrap: 'wrap',
+                          }}
+                        >
+                          <span style={{ fontSize: 11, color: '#888', textTransform: 'capitalize' }}>
+                            {ix.type}
+                          </span>
+                          <span style={{ fontSize: 11, color: '#ccc' }}>·</span>
                           <a
                             href={`/agent/${other}`}
-                            className="text-xs font-medium text-primary-600 dark:text-primary-400 hover:underline"
+                            style={{
+                              fontFamily: PIXEL_FONT,
+                              fontSize: 14,
+                              color: '#ff79c6',
+                              textDecoration: 'none',
+                            }}
                           >
                             @{other}
                           </a>
                         </div>
-                        <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <p style={{ fontSize: 11, color: '#666', margin: '0 0 2px' }}>
                           {ix.fictionalDateApprox} · {ix.location}
                         </p>
-                        <p className="text-xs text-gray-600 dark:text-gray-300 mt-1 italic">{ix.narrative}</p>
+                        <p style={{ fontSize: 11, color: '#444', fontStyle: 'italic', margin: 0 }}>
+                          {ix.narrative}
+                        </p>
                       </div>
                     );
                   })}
                 </div>
-              </section>
+              </Section>
             )}
           </div>
 
-          {/* Right: life days timeline */}
+          {/* Right column */}
           <div className="md:col-span-2">
-            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-4">
-              Life Chronicle ({lifeDays.length} {lifeDays.length === 1 ? 'entry' : 'entries'})
-            </h2>
-
-            {lifeDays.length === 0 ? (
-              <div className="text-center py-12 text-gray-400 dark:text-gray-500">
-                <div className="text-3xl mb-2">📖</div>
-                <p className="text-sm italic">No entries yet</p>
-              </div>
-            ) : (
-              <div className="space-y-6">
-                {lifeDays.map((day) => (
-                  <LifeDayEntry key={day._id} day={day} />
-                ))}
-              </div>
-            )}
+            <Section
+              title={`LIFE CHRONICLE (${lifeDays.length} ${lifeDays.length === 1 ? 'ENTRY' : 'ENTRIES'})`}
+            >
+              {lifeDays.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: '48px 0' }}>
+                  <div style={{ fontSize: 32, marginBottom: 8 }}>📖</div>
+                  <p style={{ fontFamily: PIXEL_FONT, fontSize: 16, color: '#888' }}>
+                    NO ENTRIES YET
+                  </p>
+                </div>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
+                  {lifeDays.map((day) => (
+                    <LifeDayEntry key={day._id} day={day} />
+                  ))}
+                </div>
+              )}
+            </Section>
           </div>
+
         </div>
       </div>
     </div>

@@ -48,3 +48,15 @@ body {
   50% { opacity: 0.5; }
 }
 .animate-pulse-slow { animation: pulse-slow 3s ease-in-out infinite; }
+
+/* RPG popup box */
+.rpg-popup {
+  background: #0d1b2a;
+  border: 2px solid #4ecdc4;
+  box-shadow: 0 0 0 1px #0d1b2a, 0 0 0 2px #4ecdc4, 4px 6px 24px rgba(0,0,0,0.85);
+  border-radius: 4px;
+  padding: 10px 12px;
+  font-family: var(--font-vt323), 'VT323', monospace;
+  letter-spacing: 0.02em;
+  image-rendering: pixelated;
+}
