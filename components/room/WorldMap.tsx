@@ -9,6 +9,7 @@ import { getCityLatLon } from "@/lib/utils/geocode";
 const GRID_W = 100;
 const GRID_H = 50;
 const MAX_TRAIL = 10;
+const PIXEL_FONT = "var(--font-vt323), 'VT323', monospace";
 
 const AGENT_COLORS = [
   "#ff6b6b", "#4ecdc4", "#45b7d1", "#ffd93d", "#ff9f43",
@@ -223,6 +224,19 @@ interface Props {
   intersections: Intersection[];
 }
 
+// ─── Helpers ───────────────────────────────────────────────────────────────────
+
+function formatCountdown(lastActive: string | undefined, now: number): { text: string; urgent: boolean } {
+  if (!lastActive) return { text: "UNACTIVE", urgent: false };
+  const remaining = new Date(lastActive).getTime() + 24 * 60 * 60 * 1000 - now;
+  if (remaining <= 0) return { text: "UPDATING...", urgent: true };
+  const h = Math.floor(remaining / 3_600_000);
+  const m = Math.floor((remaining % 3_600_000) / 60_000);
+  const s = Math.floor((remaining % 60_000) / 1_000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return { text: `${pad(h)}:${pad(m)}:${pad(s)}`, urgent: h === 0 };
+}
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function WorldMap({ agentData, allLifeDays, intersections }: Props) {
@@ -237,6 +251,26 @@ export default function WorldMap({ agentData, allLifeDays, intersections }: Prop
   // LLM-resolved positions
   const [llmAgents, setLlmAgents] = useState<AgentOnMap[]>([]);
   const llmAttempted = useRef(new Set<string>());
+
+  // Pan state
+  const [panX, setPanX] = useState(0);
+  const dragRef = useRef({ dragging: false, startX: 0, startPanX: 0 });
+  const hasDraggedRef = useRef(false);
+
+  // Live clock for countdowns (1s tick)
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Agents sorted by life days descending (for status bar)
+  const sortedAgentData = useMemo(
+    () => agentData
+      .map((d, i) => ({ d, colorIdx: i }))
+      .sort((a, b) => (b.d.latestLifeDay?.roundNumber ?? -1) - (a.d.latestLifeDay?.roundNumber ?? -1)),
+    [agentData]
+  );
 
   // ── Life days grouped by agent ────────────────────────────────────────────
   const lifeDaysByAgent = useMemo(() => {
@@ -362,10 +396,11 @@ export default function WorldMap({ agentData, allLifeDays, intersections }: Prop
   const measure = useCallback(() => {
     const el = containerRef.current;
     if (!el) return;
-    const { width, height } = el.getBoundingClientRect();
-    const cs = Math.max(1, Math.min(Math.floor(width / GRID_W), Math.floor(height / GRID_H)));
+    const { width } = el.getBoundingClientRect();
+    // Fill width exactly; map may overflow the bottom (clipped by overflow:hidden)
+    const cs = Math.max(1, width / GRID_W);
     setCellSize(cs);
-    setMapOffset({ x: Math.floor((width - cs * GRID_W) / 2), y: Math.floor((height - cs * GRID_H) / 2) });
+    setMapOffset({ x: 0, y: 0 });
   }, []);
 
   useEffect(() => {
@@ -385,24 +420,42 @@ export default function WorldMap({ agentData, allLifeDays, intersections }: Prop
     canvas.height = height;
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
-    ctx.fillStyle = "#ffffff";
-    ctx.fillRect(0, 0, width, height);
+
+    // Render land dots onto an offscreen tile
+    const mapW = GRID_W * cellSize;
+    const mapH = GRID_H * cellSize;
+    const off = document.createElement("canvas");
+    off.width = mapW;
+    off.height = mapH;
+    const octx = off.getContext("2d");
+    if (!octx) return;
     const radius = Math.max(0.5, (cellSize * 0.55) / 2);
-    ctx.fillStyle = "#1a1a1a";
+    octx.fillStyle = "#1a1a1a";
     for (let row = 0; row < GRID_H; row++) {
       for (let col = 0; col < GRID_W; col++) {
         if (!LAND_GRID[row][col]) continue;
-        ctx.beginPath();
-        ctx.arc(mapOffset.x + (col + 0.5) * cellSize, mapOffset.y + (row + 0.5) * cellSize, radius, 0, Math.PI * 2);
-        ctx.fill();
+        octx.beginPath();
+        octx.arc((col + 0.5) * cellSize, (row + 0.5) * cellSize, radius, 0, Math.PI * 2);
+        octx.fill();
       }
     }
-  }, [cellSize, mapOffset]);
+
+    // Paint background and draw 3 tiled copies for seamless wrap
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, width, height);
+    const pxn = ((panX % mapW) + mapW) % mapW;
+    const startX = mapOffset.x + pxn - mapW;
+    for (let i = 0; i < 3; i++) ctx.drawImage(off, startX + i * mapW, mapOffset.y);
+  }, [cellSize, mapOffset, panX]);
 
   // ── Derived hover info ────────────────────────────────────────────────────
   const highlightedAgent = hoveredItem?.agentName ?? null;
   const hoveredAgent = hoveredItem?.type === "agent" ? hoveredItem.agentName : null;
   const connectedNames = hoveredAgent ? (adjacency.get(hoveredAgent) ?? new Set<string>()) : new Set<string>();
+
+  // Pan helpers
+  const mapWidth = GRID_W * cellSize;
+  const panXNorm = ((panX % mapWidth) + mapWidth) % mapWidth; // always in [0, mapWidth)
 
   // Dot radii
   const landDotR = Math.max(0.5, (cellSize * 0.55) / 2);
@@ -428,7 +481,30 @@ export default function WorldMap({ agentData, allLifeDays, intersections }: Prop
     <div
       ref={containerRef}
       className="relative w-full overflow-hidden"
-      style={{ height: "calc(100vh - 64px)", background: "#ffffff" }}
+      style={{ height: "calc(100vh - 64px)", background: "#ffffff", cursor: dragRef.current.dragging ? "grabbing" : "grab" }}
+      onMouseDown={e => {
+        dragRef.current = { dragging: true, startX: e.clientX, startPanX: panX };
+        hasDraggedRef.current = false;
+      }}
+      onMouseMove={e => {
+        if (!dragRef.current.dragging) return;
+        const dx = e.clientX - dragRef.current.startX;
+        if (Math.abs(dx) > 3) hasDraggedRef.current = true;
+        setPanX(dragRef.current.startPanX + dx);
+      }}
+      onMouseUp={() => { dragRef.current.dragging = false; }}
+      onMouseLeave={() => { dragRef.current.dragging = false; }}
+      onTouchStart={e => {
+        dragRef.current = { dragging: true, startX: e.touches[0].clientX, startPanX: panX };
+        hasDraggedRef.current = false;
+      }}
+      onTouchMove={e => {
+        if (!dragRef.current.dragging) return;
+        const dx = e.touches[0].clientX - dragRef.current.startX;
+        if (Math.abs(dx) > 3) hasDraggedRef.current = true;
+        setPanX(dragRef.current.startPanX + dx);
+      }}
+      onTouchEnd={() => { dragRef.current.dragging = false; }}
     >
       {/* Land canvas */}
       <canvas ref={canvasRef} className="absolute inset-0 w-full h-full" style={{ zIndex: 0 }} />
@@ -448,43 +524,48 @@ export default function WorldMap({ agentData, allLifeDays, intersections }: Prop
           );
         })}
         {([-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150] as const).map(lon => {
-          const x = mapOffset.x + ((lon + 180) / 360) * GRID_W * cellSize;
-          return (
+          const baseX = mapOffset.x + ((lon + 180) / 360) * GRID_W * cellSize;
+          return ([-1, 0, 1] as const).map(copy => (
             <line
-              key={`lon${lon}`}
-              x1={x} y1={0} x2={x} y2="100%"
+              key={`lon${lon}_${copy}`}
+              x1={baseX + panXNorm + copy * mapWidth} y1={0}
+              x2={baseX + panXNorm + copy * mapWidth} y2="100%"
               stroke="rgba(0,0,0,0.13)" strokeWidth={0.6} strokeDasharray="5 5"
             />
-          );
+          ));
         })}
 
-        {allAgentsOnMap.map(agent => {
-          const trail = agentTrails.get(agent.name);
-          if (!trail || trail.length === 0) return null;
-          const ac = avatarCenter(agent);
-          const pts = [...trail].reverse().map(trailCenter);
-          pts.push(ac);
-          const d = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
-          const isHighlighted = highlightedAgent === agent.name;
-          return (
-            <path
-              key={`tl-${agent.name}`}
-              d={d}
-              fill="none"
-              stroke={agent.color}
-              strokeWidth={isHighlighted ? 1.5 : 0.8}
-              strokeOpacity={isHighlighted ? 0.85 : 0.3}
-              strokeDasharray="3 3"
-            />
-          );
-        })}
-        {hoveredAgent && Array.from(connectedNames).map(name => {
-          const target = agentPosMap.get(name);
-          const src = agentPosMap.get(hoveredAgent);
-          if (!target || !src) return null;
-          const a = avatarCenter(src), b = avatarCenter(target);
-          return <line key={`att-${name}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#ff79c6" strokeWidth={1.5} strokeDasharray="5 3" opacity={0.8} />;
-        })}
+        {([-1, 0, 1] as const).map(copy => (
+          <g key={`map-copy-${copy}`} transform={`translate(${panXNorm + copy * mapWidth}, 0)`}>
+            {allAgentsOnMap.map(agent => {
+              const trail = agentTrails.get(agent.name);
+              if (!trail || trail.length === 0) return null;
+              const ac = avatarCenter(agent);
+              const pts = [...trail].reverse().map(trailCenter);
+              pts.push(ac);
+              const d = pts.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+              const isHighlighted = highlightedAgent === agent.name;
+              return (
+                <path
+                  key={`tl-${agent.name}`}
+                  d={d}
+                  fill="none"
+                  stroke={agent.color}
+                  strokeWidth={isHighlighted ? 1.5 : 0.8}
+                  strokeOpacity={isHighlighted ? 0.85 : 0.3}
+                  strokeDasharray="3 3"
+                />
+              );
+            })}
+            {hoveredAgent && Array.from(connectedNames).map(name => {
+              const target = agentPosMap.get(name);
+              const src = agentPosMap.get(hoveredAgent);
+              if (!target || !src) return null;
+              const a = avatarCenter(src), b = avatarCenter(target);
+              return <line key={`att-${name}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#ff79c6" strokeWidth={1.5} strokeDasharray="5 3" opacity={0.8} />;
+            })}
+          </g>
+        ))}
       </svg>
 
       {/* Trail dots (colored circles, pointer-events enabled) */}
@@ -494,16 +575,15 @@ export default function WorldMap({ agentData, allLifeDays, intersections }: Prop
         const isHighlighted = highlightedAgent === agent.name;
         const r = isHighlighted ? trailDotRHl : trailDotR;
 
-        return trail.map((point, idx) => {
+        return trail.flatMap((point, idx) => {
           const tc = trailCenter(point);
-          // Hit area: full grid cell, centered on dot center
           const hitSize = Math.max(cellSize, 14);
-          return (
+          return ([-1, 0, 1] as const).map(copy => (
             <div
-              key={`td-${agent.name}-${idx}`}
+              key={`td-${agent.name}-${idx}-${copy}`}
               className="absolute"
               style={{
-                left: tc.x - hitSize / 2,
+                left: tc.x + panXNorm + copy * mapWidth - hitSize / 2,
                 top: tc.y - hitSize / 2,
                 width: hitSize,
                 height: hitSize,
@@ -533,24 +613,24 @@ export default function WorldMap({ agentData, allLifeDays, intersections }: Prop
                 }}
               />
             </div>
-          );
+          ));
         });
       })}
 
-      {/* Agent avatars */}
-      {allAgentsOnMap.map(agent => {
-        const px = mapOffset.x + agent.col * cellSize;
+      {/* Agent avatars — rendered at 3 x-positions for wraparound */}
+      {allAgentsOnMap.flatMap(agent => {
+        const basePx = mapOffset.x + agent.col * cellSize;
         const py = mapOffset.y + agent.row * cellSize;
         const avatarSize = Math.max(18, Math.min(cellSize * 2 - 2, 36));
         const isHovered = hoveredAgent === agent.name;
         const isConnected = connectedNames.has(agent.name);
 
-        return (
+        return ([-1, 0, 1] as const).map(copy => (
           <div
-            key={agent.name}
-            className="absolute cursor-pointer select-none"
-            style={{ left: px, top: py, width: cellSize * 2, height: cellSize * 2, zIndex: isHovered ? 30 : 20, display: "flex", alignItems: "center", justifyContent: "center" }}
-            onClick={() => router.push(`/agent/${agent.name}`)}
+            key={`${agent.name}-${copy}`}
+            className="absolute select-none"
+            style={{ left: basePx + panXNorm + copy * mapWidth, top: py, width: cellSize * 2, height: cellSize * 2, zIndex: isHovered ? 30 : 20, display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }}
+            onClick={() => { if (!hasDraggedRef.current) router.push(`/agent/${agent.name}`); }}
             onMouseEnter={e => {
               setHoveredItem({ type: "agent", agentName: agent.name });
               updatePopupPos(e);
@@ -573,10 +653,14 @@ export default function WorldMap({ agentData, allLifeDays, intersections }: Prop
                 boxShadow: isHovered ? `0 0 0 3px ${agent.color}, 0 4px 16px rgba(0,0,0,0.2)` : `0 2px 8px rgba(0,0,0,0.15)`,
                 transition: "box-shadow 0.15s, border-color 0.15s",
                 background: "#f0f0f0",
-              }}
+                pointerEvents: "auto",
+                userSelect: "none",
+                draggable: false,
+              } as React.CSSProperties}
+              draggable={false}
             />
           </div>
-        );
+        ));
       })}
 
       {/* Popups */}
@@ -599,9 +683,89 @@ export default function WorldMap({ agentData, allLifeDays, intersections }: Prop
         </div>
       )}
 
-      {/* Count badge */}
-      <div className="absolute bottom-4 right-4 px-3 py-1 rounded font-mono text-xs" style={{ background: "rgba(255,255,255,0.85)", color: "#1a1a1a", border: "1px solid #ccc", zIndex: 50 }}>
-        {allAgentsOnMap.length} agent{allAgentsOnMap.length !== 1 ? "s" : ""} on map
+      {/* ── Bottom agent status bar ── */}
+      <div
+        style={{
+          position: "absolute",
+          bottom: 14,
+          left: 20,
+          right: 20,
+          zIndex: 50,
+          overflowX: "auto",
+          overflowY: "hidden",
+          display: "flex",
+          gap: 8,
+          padding: "2px 2px 6px",
+          // hide scrollbar on most browsers while still scrollable
+          scrollbarWidth: "none",
+        }}
+        className="no-scrollbar"
+      >
+        {sortedAgentData.map(({ d, colorIdx }) => {
+          const color = AGENT_COLORS[colorIdx % AGENT_COLORS.length];
+          const displayName = d.persona?.displayName ?? d.agent.name;
+          const ld = d.latestLifeDay;
+          const { text: cdText, urgent } = formatCountdown(d.agent.lastActive, now);
+          const avatarUrl = `https://api.dicebear.com/9.x/thumbs/svg?seed=${encodeURIComponent(d.agent.name)}&backgroundColor=ffffff`;
+
+          return (
+            <div
+              key={d.agent.name}
+              onClick={() => router.push(`/agent/${d.agent.name}`)}
+              style={{
+                flexShrink: 0,
+                width: 148,
+                background: "rgba(13,27,42,0.93)",
+                border: `2px solid ${color}`,
+                boxShadow: `2px 2px 0 ${color}`,
+                padding: "7px 9px",
+                cursor: "pointer",
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
+              }}
+            >
+              {/* Avatar + name row */}
+              <div style={{ display: "flex", alignItems: "center", gap: 7 }}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={avatarUrl}
+                  alt={displayName}
+                  width={26}
+                  height={26}
+                  style={{ width: 26, height: 26, borderRadius: "50%", border: `2px solid ${color}`, flexShrink: 0, background: "#f0f0f0" }}
+                />
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontFamily: PIXEL_FONT, fontSize: 15, color: "#ffffff", lineHeight: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {displayName}
+                  </div>
+                  <div style={{ fontFamily: PIXEL_FONT, fontSize: 12, color: color, lineHeight: 1.1 }}>
+                    @{d.agent.name}
+                  </div>
+                </div>
+              </div>
+
+              {/* Life day info */}
+              {ld ? (
+                <div>
+                  <div style={{ fontFamily: PIXEL_FONT, fontSize: 13, color: "#4ecdc4", lineHeight: 1.1 }}>
+                    Day {ld.roundNumber} · Age {ld.fictionalAge}
+                  </div>
+                  <div style={{ fontSize: 10, color: "#7a9aaa", lineHeight: 1.2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {ld.location.city}, {ld.location.country}
+                  </div>
+                </div>
+              ) : (
+                <div style={{ fontSize: 10, color: "#555", fontStyle: "italic" }}>No entries yet</div>
+              )}
+
+              {/* Countdown */}
+              <div style={{ fontFamily: PIXEL_FONT, fontSize: 14, color: cdText === "UNACTIVE" ? "#555" : urgent ? "#ff6b6b" : "#f7dc6f", letterSpacing: "0.04em", lineHeight: 1 }}>
+                {cdText === "UNACTIVE" || cdText === "UPDATING..." ? cdText : `⏱ ${cdText}`}
+              </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );

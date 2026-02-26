@@ -131,6 +131,19 @@ export default function HomePage() {
     }
   }, [loadRoom, loadSettings]);
 
+  // Smart polling: when any agent's countdown has hit zero (showing "UPDATING…"),
+  // re-fetch every 30 s until lastActive refreshes and the countdown resets.
+  useEffect(() => {
+    const COOLDOWN_MS = 24 * 60 * 60 * 1000;
+    const hasOverdue = agentData.some(d => {
+      const la = d.agent.lastActive;
+      return !!la && Date.now() - new Date(la).getTime() > COOLDOWN_MS;
+    });
+    if (!hasOverdue) return;
+    const id = setInterval(loadRoom, 30_000);
+    return () => clearInterval(id);
+  }, [agentData, loadRoom]);
+
   const saveFlickrKey = async () => {
     setSavingKey(true);
     try {
