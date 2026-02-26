@@ -12,10 +12,6 @@ type PhotoSource = 'brave_search' | 'flickr' | 'manual';
  * connectDB() before calling this function.
  */
 export async function simulateAgent(agent: IAgent) {
-  // Mark as active now so countdown resets immediately
-  agent.lastActive = new Date();
-  await agent.save();
-
   // ── Step 1: Ensure persona exists ──────────────────────────────
   let persona = await Persona.findOne({ agentId: agent._id });
   let isNewPersona = false;
@@ -97,6 +93,11 @@ export async function simulateAgent(agent: IAgent) {
     isTrajectoryDeviation: lifeDayData.isTrajectoryDeviation || false,
     deviationContext: lifeDayData.deviationContext || undefined,
   });
+
+  // ── Update lastActive only after successful LifeDay creation ──
+  // (updating earlier would reset the countdown even if simulation failed)
+  agent.lastActive = new Date();
+  await agent.save();
 
   return { isNewPersona, persona: isNewPersona ? persona : null, lifeDay, photoSource: photo.source };
 }
