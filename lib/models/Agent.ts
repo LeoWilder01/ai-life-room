@@ -8,6 +8,7 @@ export interface IAgent extends Document {
   claimToken: string;
   ownerEmail?: string;
   lastActive?: Date;
+  lastFailedAt?: Date;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -49,6 +50,9 @@ const AgentSchema = new Schema<IAgent>(
     lastActive: {
       type: Date,
       default: Date.now,
+    },
+    lastFailedAt: {
+      type: Date,
     },
   },
   {

@@ -13,6 +13,7 @@ interface Agent {
   claimStatus: string;
   hasPersona: boolean;
   lastActive?: string;
+  lastFailedAt?: string;
 }
 
 interface Persona {

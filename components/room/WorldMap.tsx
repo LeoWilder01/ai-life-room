@@ -81,6 +81,19 @@ const LAND_GRID: boolean[][] = (() => {
   return g;
 })();
 
+// Pre-computed dot color levels (0–4) per cell — fixed, no repeating pattern
+const DOT_LEVEL: number[][] = (() => {
+  const g: number[][] = [];
+  for (let r = 0; r < GRID_H; r++) {
+    g[r] = [];
+    for (let c = 0; c < GRID_W; c++) {
+      const h = Math.sin(r * 127.1 + c * 311.7) * 43758.5453;
+      g[r][c] = Math.floor(Math.abs(h) % 5);
+    }
+  }
+  return g;
+})();
+
 // ─── Utilities ─────────────────────────────────────────────────────────────────
 
 function latLonToGrid(lat: number, lon: number) {
@@ -269,6 +282,7 @@ interface Agent {
   claimStatus: string;
   hasPersona: boolean;
   lastActive?: string;
+  lastFailedAt?: string;
 }
 interface Persona {
   displayName: string;
@@ -317,18 +331,47 @@ interface Props {
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
 
+const CYCLE_MS = 24 * 60 * 60 * 1000;
+const FAKE_UPDATING_MS = 30_000;
+
+function nameHash(name: string): number {
+  let h = 0;
+  for (const c of name) h = (Math.imul(31, h) + c.charCodeAt(0)) | 0;
+  return Math.abs(h);
+}
+
 function formatCountdown(
   lastActive: string | undefined,
   now: number,
+  agentName: string,
+  lastFailedAt?: string,
 ): { text: string; urgent: boolean } {
-  if (!lastActive) return { text: "UNACTIVE", urgent: false };
-  const remaining = new Date(lastActive).getTime() + 24 * 60 * 60 * 1000 - now;
-  if (remaining <= 0) return { text: "UPDATING", urgent: true };
-  const h = Math.floor(remaining / 3_600_000);
-  const m = Math.floor((remaining % 3_600_000) / 60_000);
-  const s = Math.floor((remaining % 60_000) / 1_000);
   const pad = (n: number) => String(n).padStart(2, "0");
-  return { text: `${pad(h)}:${pad(m)}:${pad(s)}`, urgent: h === 0 };
+  const toHMS = (ms: number) => {
+    const h = Math.floor(ms / 3_600_000);
+    const m = Math.floor((ms % 3_600_000) / 60_000);
+    const s = Math.floor((ms % 60_000) / 1_000);
+    return { text: `${pad(h)}:${pad(m)}:${pad(s)}`, urgent: h === 0 };
+  };
+
+  // If real update was within 24h, show real countdown
+  if (lastActive) {
+    const sinceActive = now - new Date(lastActive).getTime();
+    if (sinceActive < CYCLE_MS) {
+      if (lastFailedAt && new Date(lastFailedAt) > new Date(lastActive)) {
+        return { text: "FAILED", urgent: true };
+      }
+      return toHMS(CYCLE_MS - sinceActive);
+    }
+  }
+
+  // Otherwise: fake independent cycling countdown based on agent name
+  const offset = nameHash(agentName) % CYCLE_MS;
+  const phase = (now + offset) % CYCLE_MS;
+  if (phase >= CYCLE_MS - FAKE_UPDATING_MS) {
+    return { text: "UPDATING", urgent: true };
+  }
+  return toHMS(CYCLE_MS - FAKE_UPDATING_MS - phase);
 }
 
 
@@ -673,20 +716,21 @@ export default function WorldMap({
     const octx = off.getContext("2d");
     if (!octx) return;
     const radius = Math.max(0.5, (cellSize * 0.55) / 2);
-    octx.fillStyle = "#000000";
-    for (let row = 0; row < GRID_H; row++) {
-      for (let col = 0; col < GRID_W; col++) {
-        if (!LAND_GRID[row][col]) continue;
-        octx.beginPath();
-        octx.arc(
-          (col + 0.5) * cellSize,
-          (row + 0.5) * cellSize,
-          radius,
-          0,
-          Math.PI * 2,
-        );
-        octx.fill();
+    const grayLevels = ["#aaaaaa", "#777777", "#484848", "#222222", "#000000"];
+    for (let lvl = 0; lvl < grayLevels.length; lvl++) {
+      octx.fillStyle = grayLevels[lvl];
+      octx.beginPath();
+      for (let row = 0; row < GRID_H; row++) {
+        for (let col = 0; col < GRID_W; col++) {
+          if (!LAND_GRID[row][col]) continue;
+          if (DOT_LEVEL[row][col] !== lvl) continue;
+          const cx = (col + 0.5) * cellSize;
+          const cy = (row + 0.5) * cellSize;
+          octx.moveTo(cx + radius, cy);
+          octx.arc(cx, cy, radius, 0, Math.PI * 2);
+        }
       }
+      octx.fill();
     }
 
     // Paint background and draw 3 tiled copies for seamless wrap
@@ -1100,6 +1144,8 @@ export default function WorldMap({
             const { text: cdText, urgent } = formatCountdown(
               d.agent.lastActive,
               now,
+              d.agent.name,
+              d.agent.lastFailedAt,
             );
             const avatarUrl = `https://api.dicebear.com/9.x/thumbs/svg?seed=${encodeURIComponent(d.agent.name)}&backgroundColor=ffffff`;
             const cdColor =
