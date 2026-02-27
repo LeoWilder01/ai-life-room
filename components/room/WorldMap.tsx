@@ -257,6 +257,13 @@ function fmtDate(dateStr: string) {
   }
 }
 
+function truncateSpeech(text: string): string {
+  if (!text) return "";
+  const t = text.trim();
+  if (t.length > 52) return t.slice(0, 49).trimEnd() + "...";
+  return t;
+}
+
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
 interface LifeDay {
@@ -267,6 +274,7 @@ interface LifeDay {
   fictionalAge: number;
   location: { city: string; country: string; coordinates?: [number, number] };
   photo: { originalUrl: string; caption: string };
+  narrative: string;
   thoughtBubble: string;
   interactions?: {
     withAgentName: string;
@@ -374,7 +382,6 @@ function formatCountdown(
   return toHMS(CYCLE_MS - FAKE_UPDATING_MS - phase);
 }
 
-
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function WorldMap({
@@ -418,6 +425,13 @@ export default function WorldMap({
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Speech bubble rotation (2.5s per agent)
+  const [globalStep, setGlobalStep] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setGlobalStep((s) => s + 1), 2500);
     return () => clearInterval(id);
   }, []);
 
@@ -595,6 +609,23 @@ export default function WorldMap({
     for (const a of allAgentsOnMap) m.set(a.name, a);
     return m;
   }, [allAgentsOnMap]);
+
+  // ── Speaking agent (derived from globalStep + allAgentsOnMap) ─────────────
+  const speakingAgent = useMemo(() => {
+    if (allAgentsOnMap.length === 0) return null;
+    return allAgentsOnMap[globalStep % allAgentsOnMap.length];
+  }, [allAgentsOnMap, globalStep]);
+
+  const speakingText = useMemo(() => {
+    if (!speakingAgent) return "";
+    const days = lifeDaysByAgent.get(speakingAgent.name) || [];
+    if (days.length === 0) return "";
+    const roundNum = Math.floor(
+      globalStep / Math.max(1, allAgentsOnMap.length),
+    );
+    const idx = roundNum % days.length;
+    return truncateSpeech(days[idx]?.narrative ?? "");
+  }, [speakingAgent, globalStep, lifeDaysByAgent, allAgentsOnMap.length]);
 
   // Pan map so that agent's map position aligns with their bottom-bar card
   const panToAgent = useCallback(
@@ -1074,6 +1105,57 @@ export default function WorldMap({
           </div>
         ));
       })}
+
+      {/* Speech bubbles */}
+      {speakingAgent &&
+        speakingText &&
+        ([-1, 0, 1] as const).map((copy) => {
+          const basePx = mapOffset.x + speakingAgent.col * cellSize;
+          const py = mapOffset.y + speakingAgent.row * cellSize;
+          const bubbleW = 158;
+          const bubbleH = 52;
+          const tailH = 8;
+          const centerX = basePx + panXNorm + copy * mapWidth + cellSize;
+          return (
+            <div
+              key={`speech-${copy}`}
+              className="absolute pointer-events-none"
+              style={{
+                left: centerX - bubbleW / 2,
+                top: py - bubbleH - tailH - 2,
+                width: bubbleW,
+                zIndex: 33,
+              }}
+            >
+              <div
+                style={{
+                  background: "rgba(13,27,42,0.93)",
+                  border: `2px solid ${speakingAgent.color}`,
+                  borderRadius: 4,
+                  padding: "5px 8px",
+                  fontFamily: PIXEL_FONT,
+                  fontSize: 13,
+                  color: "#e8eaf0",
+                  lineHeight: 1.35,
+                  whiteSpace: "pre-wrap",
+                  wordBreak: "break-word",
+                }}
+              >
+                {speakingText}
+              </div>
+              <div
+                style={{
+                  width: 0,
+                  height: 0,
+                  borderLeft: "6px solid transparent",
+                  borderRight: "6px solid transparent",
+                  borderTop: `8px solid ${speakingAgent.color}`,
+                  margin: "0 auto",
+                }}
+              />
+            </div>
+          );
+        })}
 
       {/* Popups */}
       {hoveredItem &&
