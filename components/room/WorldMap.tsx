@@ -331,6 +331,7 @@ function formatCountdown(
   return { text: `${pad(h)}:${pad(m)}:${pad(s)}`, urgent: h === 0 };
 }
 
+
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function WorldMap({
@@ -672,7 +673,7 @@ export default function WorldMap({
     const octx = off.getContext("2d");
     if (!octx) return;
     const radius = Math.max(0.5, (cellSize * 0.55) / 2);
-    octx.fillStyle = "#1a1a1a";
+    octx.fillStyle = "#000000";
     for (let row = 0; row < GRID_H; row++) {
       for (let col = 0; col < GRID_W; col++) {
         if (!LAND_GRID[row][col]) continue;
@@ -987,17 +988,20 @@ export default function WorldMap({
             )}
             {/* Downward arrow below avatar when this agent is hovered in bottom bar */}
             {hoveredBarAgent === agent.name && (
-              <div style={{
-                position: "absolute",
-                bottom: -10,
-                left: "50%",
-                transform: "translateX(-50%)",
-                width: 0, height: 0,
-                borderLeft: "5px solid transparent",
-                borderRight: "5px solid transparent",
-                borderTop: `7px solid ${agent.color}`,
-                pointerEvents: "none",
-              }} />
+              <div
+                style={{
+                  position: "absolute",
+                  bottom: -10,
+                  left: "50%",
+                  transform: "translateX(-50%)",
+                  width: 0,
+                  height: 0,
+                  borderLeft: "5px solid transparent",
+                  borderRight: "5px solid transparent",
+                  borderTop: `7px solid ${agent.color}`,
+                  pointerEvents: "none",
+                }}
+              />
             )}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -1109,7 +1113,10 @@ export default function WorldMap({
                   else cardRefs.current.delete(d.agent.name);
                 }}
                 onClick={() => router.push(`/agent/${d.agent.name}`)}
-                onMouseEnter={() => { panToAgent(d.agent.name); setHoveredBarAgent(d.agent.name); }}
+                onMouseEnter={() => {
+                  panToAgent(d.agent.name);
+                  setHoveredBarAgent(d.agent.name);
+                }}
                 onMouseLeave={() => setHoveredBarAgent(null)}
                 style={{
                   flexShrink: 0,
@@ -1122,14 +1129,25 @@ export default function WorldMap({
                 }}
               >
                 {/* Upward arrow above avatar (fixed height to avoid layout shift) */}
-                <div style={{ height: 10, display: "flex", alignItems: "flex-end", justifyContent: "center" }}>
-                  <div style={{
-                    width: 0, height: 0,
-                    borderLeft: "5px solid transparent",
-                    borderRight: "5px solid transparent",
-                    borderBottom: `7px solid ${color}`,
-                    visibility: hoveredBarAgent === d.agent.name ? "visible" : "hidden",
-                  }} />
+                <div
+                  style={{
+                    height: 10,
+                    display: "flex",
+                    alignItems: "flex-end",
+                    justifyContent: "center",
+                  }}
+                >
+                  <div
+                    style={{
+                      width: 0,
+                      height: 0,
+                      borderLeft: "5px solid transparent",
+                      borderRight: "5px solid transparent",
+                      borderBottom: `7px solid ${color}`,
+                      visibility:
+                        hoveredBarAgent === d.agent.name ? "visible" : "hidden",
+                    }}
+                  />
                 </div>
 
                 {/* Avatar */}
@@ -1309,9 +1327,7 @@ function AgentPopup({
                     border: `1px solid ${agent.color}44`,
                   }}
                 >
-                  {proxyPhoto && (
-                    <PhotoThumb src={proxyPhoto} alt="" />
-                  )}
+                  {proxyPhoto && <PhotoThumb src={proxyPhoto} alt="" />}
                 </div>
                 {/* Text */}
                 <div style={{ flex: 1, minWidth: 0 }}>

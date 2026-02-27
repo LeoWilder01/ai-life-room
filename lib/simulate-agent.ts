@@ -17,7 +17,7 @@ export async function simulateAgent(agent: IAgent) {
   let isNewPersona = false;
 
   if (!persona) {
-    const personaData = await generatePersona(agent.name);
+    const personaData = await generatePersona(agent.name, agent.description || undefined);
     persona = await Persona.create({
       agentId: agent._id,
       agentName: agent.name,

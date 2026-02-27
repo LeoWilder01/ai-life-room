@@ -27,7 +27,7 @@ export default function Header() {
         borderBottom: "2px solid #4ecdc4",
       }}
     >
-      <div style={{ maxWidth: 1280, margin: "0 auto", padding: "0 16px" }}>
+      <div style={{ padding: "0 16px" }}>
         <div
           style={{
             display: "flex",
@@ -42,7 +42,7 @@ export default function Header() {
             style={{
               display: "flex",
               alignItems: "center",
-              gap: 8,
+              gap: 0,
               textDecoration: "none",
             }}
           >
@@ -55,7 +55,7 @@ export default function Header() {
                 letterSpacing: "0.08em",
               }}
             >
-              AI LIFE PATH
+              AI LIFE PATH: What Life Your Agent thinks You Have
             </span>
           </Link>
 

@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
-import { useState, useEffect, useCallback } from 'react';
-import Header from '@/components/layout/Header';
-import WorldMap from '@/components/room/WorldMap';
-import LifelogSidebar from '@/components/room/LifelogSidebar';
-import { MdSettings, MdClose } from 'react-icons/md';
+import { useState, useEffect, useCallback } from "react";
+import Header from "@/components/layout/Header";
+import WorldMap from "@/components/room/WorldMap";
+import LifelogSidebar from "@/components/room/LifelogSidebar";
+import { MdSettings, MdClose } from "react-icons/md";
 
 interface Agent {
   _id: string;
@@ -31,7 +31,11 @@ interface LifeDay {
   photo: { originalUrl: string; caption: string };
   thoughtBubble: string;
   narrative: string;
-  interactions?: { withAgentName: string; description: string; isAttraction: boolean }[];
+  interactions?: {
+    withAgentName: string;
+    description: string;
+    isAttraction: boolean;
+  }[];
   createdAt?: string;
 }
 
@@ -54,16 +58,16 @@ export default function HomePage() {
   const [intersections, setIntersections] = useState<Intersection[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
-  const [flickrKey, setFlickrKey] = useState('');
+  const [flickrKey, setFlickrKey] = useState("");
   const [savingKey, setSavingKey] = useState(false);
   const [savedKey, setSavedKey] = useState(false);
 
   const loadRoom = useCallback(async () => {
     try {
       const [agentsRes, lifeDaysRes, intersectionsRes] = await Promise.all([
-        fetch('/api/agents?limit=100&sort=active'),
-        fetch('/api/lifedays?limit=200&sort=real'),
-        fetch('/api/intersections?limit=500'),
+        fetch("/api/agents?limit=100&sort=active"),
+        fetch("/api/lifedays?limit=200&sort=real"),
+        fetch("/api/intersections?limit=500"),
       ]);
 
       const agentsData = await agentsRes.json();
@@ -72,13 +76,17 @@ export default function HomePage() {
 
       const agents: Agent[] = agentsData.data?.agents || [];
       const lifeDays: LifeDay[] = lifeDaysData.data?.lifeDays || [];
-      const ixList: Intersection[] = intersectionsData.data?.intersections || [];
+      const ixList: Intersection[] =
+        intersectionsData.data?.intersections || [];
 
       // Latest life day per agent
       const latestByAgent = new Map<string, LifeDay>();
       for (const day of lifeDays) {
         const existing = latestByAgent.get(day.agentName);
-        if (!existing || new Date(day.fictionalDate) > new Date(existing.fictionalDate)) {
+        if (
+          !existing ||
+          new Date(day.fictionalDate) > new Date(existing.fictionalDate)
+        ) {
           latestByAgent.set(day.agentName, day);
         }
       }
@@ -86,8 +94,14 @@ export default function HomePage() {
       // Intersection count per agent
       const intersectionCount = new Map<string, number>();
       for (const ix of ixList) {
-        intersectionCount.set(ix.initiatingAgent, (intersectionCount.get(ix.initiatingAgent) || 0) + 1);
-        intersectionCount.set(ix.otherAgent, (intersectionCount.get(ix.otherAgent) || 0) + 1);
+        intersectionCount.set(
+          ix.initiatingAgent,
+          (intersectionCount.get(ix.initiatingAgent) || 0) + 1,
+        );
+        intersectionCount.set(
+          ix.otherAgent,
+          (intersectionCount.get(ix.otherAgent) || 0) + 1,
+        );
       }
 
       // Fetch personas
@@ -98,9 +112,12 @@ export default function HomePage() {
           try {
             const res = await fetch(`/api/persona/${agent.name}`);
             const data = await res.json();
-            if (data.data?.persona) personaMap.set(agent.name, data.data.persona);
-          } catch { /* ignore */ }
-        })
+            if (data.data?.persona)
+              personaMap.set(agent.name, data.data.persona);
+          } catch {
+            /* ignore */
+          }
+        }),
       );
 
       const combined: AgentData[] = agents.map((agent) => ({
@@ -113,23 +130,30 @@ export default function HomePage() {
       setAgentData(combined);
       setAllLifeDays(lifeDays);
       setIntersections(ixList);
-    } catch { /* ignore */ } finally {
+    } catch {
+      /* ignore */
+    } finally {
       setLoading(false);
     }
   }, []);
 
   const loadSettings = useCallback(async () => {
     try {
-      const res = await fetch('/api/settings');
+      const res = await fetch("/api/settings");
       const data = await res.json();
-      setFlickrKey(data.data?.flickrApiKey || '');
-    } catch { /* ignore */ }
+      setFlickrKey(data.data?.flickrApiKey || "");
+    } catch {
+      /* ignore */
+    }
   }, []);
 
   useEffect(() => {
     loadRoom();
     loadSettings();
-    if (typeof window !== 'undefined' && new URLSearchParams(window.location.search).get('settings')) {
+    if (
+      typeof window !== "undefined" &&
+      new URLSearchParams(window.location.search).get("settings")
+    ) {
       setShowSettings(true);
     }
   }, [loadRoom, loadSettings]);
@@ -138,7 +162,7 @@ export default function HomePage() {
   // re-fetch every 30 s until lastActive refreshes and the countdown resets.
   useEffect(() => {
     const COOLDOWN_MS = 24 * 60 * 60 * 1000;
-    const hasOverdue = agentData.some(d => {
+    const hasOverdue = agentData.some((d) => {
       const la = d.agent.lastActive;
       return !!la && Date.now() - new Date(la).getTime() > COOLDOWN_MS;
     });
@@ -150,20 +174,25 @@ export default function HomePage() {
   const saveFlickrKey = async () => {
     setSavingKey(true);
     try {
-      await fetch('/api/settings', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
+      await fetch("/api/settings", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ flickrApiKey: flickrKey }),
       });
       setSavedKey(true);
       setTimeout(() => setSavedKey(false), 2000);
-    } catch { /* ignore */ } finally {
+    } catch {
+      /* ignore */
+    } finally {
       setSavingKey(false);
     }
   };
 
   return (
-    <div className="flex flex-col" style={{ height: '100vh', overflow: 'hidden' }}>
+    <div
+      className="flex flex-col"
+      style={{ height: "100vh", overflow: "hidden" }}
+    >
       <Header />
 
       {/* Settings panel (slides in over the map) */}
@@ -171,8 +200,13 @@ export default function HomePage() {
         <div className="absolute top-16 right-4 z-50 w-80">
           <div className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-2xl p-5 shadow-xl">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="font-semibold text-gray-900 dark:text-white">Settings</h2>
-              <button onClick={() => setShowSettings(false)} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+              <h2 className="font-semibold text-gray-900 dark:text-white">
+                Settings
+              </h2>
+              <button
+                onClick={() => setShowSettings(false)}
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+              >
                 <MdClose className="w-5 h-5" />
               </button>
             </div>
@@ -195,9 +229,10 @@ export default function HomePage() {
                 disabled={savingKey}
                 className="px-3 py-2 bg-primary-600 text-white text-sm font-medium rounded-xl hover:bg-primary-700 disabled:opacity-50 transition-colors"
               >
-                {savedKey ? 'Saved!' : savingKey ? '…' : 'Save'}
+                {savedKey ? "Saved!" : savingKey ? "…" : "Save"}
               </button>
             </div>
+
           </div>
         </div>
       )}
@@ -207,7 +242,7 @@ export default function HomePage() {
         {loading ? (
           <div
             className="absolute inset-0 flex items-center justify-center"
-            style={{ background: '#ffffff' }}
+            style={{ background: "#ffffff" }}
           >
             <div className="text-center">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-400 mx-auto mb-3" />
@@ -216,11 +251,12 @@ export default function HomePage() {
           </div>
         ) : (
           <>
-            <WorldMap agentData={agentData} allLifeDays={allLifeDays} intersections={intersections} />
-            <LifelogSidebar
-              lifeDays={allLifeDays}
+            <WorldMap
               agentData={agentData}
+              allLifeDays={allLifeDays}
+              intersections={intersections}
             />
+            <LifelogSidebar lifeDays={allLifeDays} agentData={agentData} />
           </>
         )}
       </div>
@@ -230,9 +266,9 @@ export default function HomePage() {
         onClick={() => setShowSettings((v) => !v)}
         className="absolute top-20 right-4 z-40 flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-mono"
         style={{
-          background: 'rgba(13,27,42,0.85)',
-          color: '#4ecdc4',
-          border: '1px solid #4ecdc4',
+          background: "rgba(13,27,42,0.85)",
+          color: "#4ecdc4",
+          border: "1px solid #4ecdc4",
         }}
       >
         <MdSettings className="w-4 h-4" />

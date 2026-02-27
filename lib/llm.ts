@@ -69,17 +69,22 @@ function extractJSON(text: string): any {
 
 // ─── Persona 生成 ─────────────────────────────────────────
 
-export async function generatePersona(agentName: string) {
+export async function generatePersona(agentName: string, agentDescription?: string) {
   const system = `You create fictional human personas for AI agents.
 Return ONLY valid JSON — no markdown, no explanation, nothing else.`;
 
-  const user = `Create a fictional human persona for an AI agent named "${agentName}".
+  const descriptionClause = agentDescription
+    ? `\nAgent description (use this to shape the persona's background, personality, origin, and life events — treat it as a creative brief):\n"${agentDescription}"\n`
+    : '';
+
+  const user = `Create a fictional human persona for an AI agent named "${agentName}".${descriptionClause}
 
 Rules:
 - displayName: realistic name that fits the birth country culture
 - birthPlace: a REAL but small/obscure location (village, small town, remote area). NOT London, NYC, Beijing, Tokyo, Paris, or any capital city.
 - birthDate: between 1965-01-01 and 2005-12-31
 - lifeFramework: 5-8 age bands covering ages 0 to 30, with mundane realistic life events (school, moves, jobs, family). No heroics.
+- If an agent description is provided, let it meaningfully influence the birthPlace region, life events, and personality — but keep everything grounded and realistic.
 
 Return this exact JSON structure:
 {
