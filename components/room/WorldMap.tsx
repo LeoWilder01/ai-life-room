@@ -12,6 +12,24 @@ const GRID_H = 50;
 const MAX_TRAIL = 10;
 const PIXEL_FONT = "var(--font-vt323), 'VT323', monospace";
 
+// ── Graticule parameters ────────────────────────────────────────────────────
+// Primary grid (sparse, bolder)
+const GRAT_PRIMARY_INTERVAL = 30; // degrees between primary lines
+const GRAT_PRIMARY_WIDTH = 0.8; // stroke width (px)
+const GRAT_PRIMARY_COLOR = "rgba(0, 0, 0, 0.2)";
+const GRAT_PRIMARY_DASH = "6 6"; // strokeDasharray
+
+// Secondary grid (dense, subtle)
+const GRAT_SECONDARY_INTERVAL = 10; // degrees between secondary lines
+const GRAT_SECONDARY_WIDTH = 1; // stroke width (px)
+const GRAT_SECONDARY_COLOR = "rgba(0, 0, 0, 0.15)";
+const GRAT_SECONDARY_DASH = "2 4"; // strokeDasharray
+
+// Night-mode equivalents (same opacity, white instead of black)
+const GRAT_PRIMARY_COLOR_NIGHT   = "rgba(255, 255, 255, 0.2)";
+const GRAT_SECONDARY_COLOR_NIGHT = "rgba(255, 255, 255, 0.15)";
+// ───────────────────────────────────────────────────────────────────────────
+
 const AGENT_COLORS = [
   "#ff6b6b",
   "#4ecdc4",
@@ -28,11 +46,31 @@ const AGENT_COLORS = [
 // ─── Land map ─────────────────────────────────────────────────────────────────
 
 const LAND_RECTS: Array<[number, number, number, number]> = [
-  [-170, -52, 24, 75],
-  [-170, -130, 54, 72],
+  // ── North America ────────────────────────────────────────────────────────
+  [-168, -140, 60, 70], // Alaska body
+  //[-163, -148, 54, 60], // Alaska Peninsula
+  [-140, -52, 52, 74], // Canada – wide Arctic band
+  [-126, -52, 46, 52], // Southern Canada
+  [-124, -66, 38, 46], // Northern US + New England
+  [-124, -73, 30, 38], // Central–Southern US (Great Plains → East Coast)
+  [-97, -79, 24, 30], // Gulf Coast + northern Florida
+  [-83, -79, 24, 28], // Florida peninsula
+  [-117, -87, 14, 24], // Mexico
+  [-91, -77, 7, 14], // Central America
+  // ── Greenland / Iceland ──────────────────────────────────────────────────
   [-58, -18, 60, 84],
   [-24, -13, 63, 67],
-  [-82, -34, -56, 12],
+  // ── South America ────────────────────────────────────────────────────────
+  [-82, -60, 7, 12], // Northern coast (Venezuela / Guianas)
+  [-81, -34, -4, 7], // Wide Amazonian north
+  [-79, -34, -20, -4], // Middle SA
+  [-74, -34, -38, -20], // Tapering south
+  [-74, -55, -56, -38], // Patagonia / southern cone
+  // ── Caribbean ────────────────────────────────────────────────────────────
+  [-85, -74, 19, 23], // Cuba
+  [-74, -68, 17, 21], // Hispaniola
+  [-68, -65, 17, 19], // Puerto Rico
+  // ── Europe ───────────────────────────────────────────────────────────────
   [-9, 4, 36, 44],
   [-5, 8, 43, 52],
   [-8, 2, 50, 59],
@@ -41,10 +79,18 @@ const LAND_RECTS: Array<[number, number, number, number]> = [
   [7, 18, 37, 47],
   [18, 28, 36, 46],
   [26, 45, 36, 43],
-  [-17, 51, -35, 37],
+  // ── Atlantic islands ─────────────────────────────────────────────────────
+  [-31, -25, 37, 40], // Azores
+  [-17, -13, 27, 29], // Canary Islands
+  // ── Africa ───────────────────────────────────────────────────────────────
+  [-17, 51, 15, 37],
+  [-7, 51, -5, 15],
+  [-1, 41, -35, -5],
+  // ── Middle East / Arabia ─────────────────────────────────────────────────
   [32, 60, 12, 30],
   [44, 75, 25, 40],
-  [43, 50, -26, -12],
+  [43, 50, -26, -12], // Madagascar
+  // ── Asia ─────────────────────────────────────────────────────────────────
   [60, 93, 6, 36],
   [28, 65, 50, 75],
   [60, 180, 50, 78],
@@ -58,8 +104,12 @@ const LAND_RECTS: Array<[number, number, number, number]> = [
   [108, 119, -5, 7],
   [118, 127, 4, 20],
   [131, 148, -10, 0],
-  [113, 154, -39, -11],
-  [166, 178, -47, -34],
+  [113, 154, -39, -11], // Australia
+  [166, 178, -47, -34], // New Zealand
+  // ── Pacific islands ──────────────────────────────────────────────────────
+  [-161, -154, 18, 22], // Hawaii
+  [144, 146, 13, 16], // Guam / Mariana
+  [176, 180, -20, -15], // Fiji (eastern)
 ];
 
 function isLandPoint(lon: number, lat: number): boolean {
@@ -335,6 +385,7 @@ interface Props {
   agentData: AgentData[];
   allLifeDays: LifeDay[];
   intersections: Intersection[];
+  darkMode: boolean;
 }
 
 // ─── Helpers ───────────────────────────────────────────────────────────────────
@@ -388,6 +439,7 @@ export default function WorldMap({
   agentData,
   allLifeDays,
   intersections,
+  darkMode,
 }: Props) {
   const router = useRouter();
   const containerRef = useRef<HTMLDivElement>(null);
@@ -747,7 +799,9 @@ export default function WorldMap({
     const octx = off.getContext("2d");
     if (!octx) return;
     const radius = Math.max(0.5, (cellSize * 0.55) / 2);
-    const grayLevels = ["#aaaaaa", "#777777", "#484848", "#222222", "#000000"];
+    const grayLevels = darkMode
+      ? ["#555555", "#888888", "#bbbbbb", "#dddddd", "#ffffff"]
+      : ["#aaaaaa", "#777777", "#484848", "#222222", "#000000"];
     for (let lvl = 0; lvl < grayLevels.length; lvl++) {
       octx.fillStyle = grayLevels[lvl];
       octx.beginPath();
@@ -765,13 +819,13 @@ export default function WorldMap({
     }
 
     // Paint background and draw 3 tiled copies for seamless wrap
-    ctx.fillStyle = "#ffffff";
+    ctx.fillStyle = darkMode ? "#000000" : "#ffffff";
     ctx.fillRect(0, 0, width, height);
     const pxn = ((panX % mapW) + mapW) % mapW;
     const startX = mapOffset.x + pxn - mapW;
     for (let i = 0; i < 3; i++)
       ctx.drawImage(off, startX + i * mapW, mapOffset.y);
-  }, [cellSize, mapOffset, panX]);
+  }, [cellSize, mapOffset, panX, darkMode]);
 
   // ── Derived hover info ────────────────────────────────────────────────────
   const highlightedAgent = hoveredItem?.agentName ?? null;
@@ -780,6 +834,10 @@ export default function WorldMap({
   const connectedNames = hoveredAgent
     ? (adjacency.get(hoveredAgent) ?? new Set<string>())
     : new Set<string>();
+
+  // Night-mode graticule colors
+  const gratPrimaryColor   = darkMode ? GRAT_PRIMARY_COLOR_NIGHT   : GRAT_PRIMARY_COLOR;
+  const gratSecondaryColor = darkMode ? GRAT_SECONDARY_COLOR_NIGHT : GRAT_SECONDARY_COLOR;
 
   // Pan helpers
   const mapWidth = GRID_W * cellSize;
@@ -811,7 +869,7 @@ export default function WorldMap({
       className="relative w-full overflow-hidden"
       style={{
         height: "calc(100vh - 64px)",
-        background: "#ffffff",
+        background: darkMode ? "#000000" : "#ffffff",
         cursor: dragRef.current.dragging ? "grabbing" : "grab",
       }}
       onMouseDown={(e) => {
@@ -866,38 +924,100 @@ export default function WorldMap({
         style={{ zIndex: 10 }}
       >
         {/* ── Graticule (lat/lon grid lines) ── */}
-        {([-60, -30, 0, 30, 60] as const).map((lat) => {
-          const y = mapOffset.y + ((90 - lat) / 180) * GRID_H * cellSize;
-          return (
-            <line
-              key={`lat${lat}`}
-              x1={0}
-              y1={y}
-              x2="100%"
-              y2={y}
-              stroke="rgba(0,0,0,0.13)"
-              strokeWidth={0.6}
-              strokeDasharray="5 5"
-            />
-          );
-        })}
-        {([-150, -120, -90, -60, -30, 0, 30, 60, 90, 120, 150] as const).map(
-          (lon) => {
-            const baseX = mapOffset.x + ((lon + 180) / 360) * GRID_W * cellSize;
-            return ([-1, 0, 1] as const).map((copy) => (
+        {(() => {
+          const lines: React.ReactNode[] = [];
+
+          // Helper: generate lat values for a given interval
+          const latRange = (step: number) => {
+            const vals: number[] = [];
+            for (let lat = -90 + step; lat < 90; lat += step) vals.push(lat);
+            return vals;
+          };
+          // Helper: generate lon values for a given interval (skip ±180)
+          const lonRange = (step: number) => {
+            const vals: number[] = [];
+            for (let lon = -180 + step; lon < 180; lon += step) vals.push(lon);
+            return vals;
+          };
+
+          // Secondary lat lines (drawn first → underneath primary)
+          for (const lat of latRange(GRAT_SECONDARY_INTERVAL)) {
+            const isPrimary = lat % GRAT_PRIMARY_INTERVAL === 0;
+            if (isPrimary) continue; // primary drawn separately on top
+            const y = mapOffset.y + ((90 - lat) / 180) * GRID_H * cellSize;
+            lines.push(
               <line
-                key={`lon${lon}_${copy}`}
-                x1={baseX + panXNorm + copy * mapWidth}
-                y1={0}
-                x2={baseX + panXNorm + copy * mapWidth}
-                y2="100%"
-                stroke="rgba(0,0,0,0.13)"
-                strokeWidth={0.6}
-                strokeDasharray="5 5"
-              />
-            ));
-          },
-        )}
+                key={`slat${lat}`}
+                x1={0}
+                y1={y}
+                x2="100%"
+                y2={y}
+                stroke={gratSecondaryColor}
+                strokeWidth={GRAT_SECONDARY_WIDTH}
+                strokeDasharray={GRAT_SECONDARY_DASH}
+              />,
+            );
+          }
+
+          // Secondary lon lines
+          for (const lon of lonRange(GRAT_SECONDARY_INTERVAL)) {
+            const isPrimary = lon % GRAT_PRIMARY_INTERVAL === 0;
+            if (isPrimary) continue;
+            const baseX = mapOffset.x + ((lon + 180) / 360) * GRID_W * cellSize;
+            for (const copy of [-1, 0, 1] as const) {
+              lines.push(
+                <line
+                  key={`slon${lon}_${copy}`}
+                  x1={baseX + panXNorm + copy * mapWidth}
+                  y1={0}
+                  x2={baseX + panXNorm + copy * mapWidth}
+                  y2="100%"
+                  stroke={gratSecondaryColor}
+                  strokeWidth={GRAT_SECONDARY_WIDTH}
+                  strokeDasharray={GRAT_SECONDARY_DASH}
+                />,
+              );
+            }
+          }
+
+          // Primary lat lines (on top of secondary)
+          for (const lat of latRange(GRAT_PRIMARY_INTERVAL)) {
+            const y = mapOffset.y + ((90 - lat) / 180) * GRID_H * cellSize;
+            lines.push(
+              <line
+                key={`plat${lat}`}
+                x1={0}
+                y1={y}
+                x2="100%"
+                y2={y}
+                stroke={gratPrimaryColor}
+                strokeWidth={GRAT_PRIMARY_WIDTH}
+                strokeDasharray={GRAT_PRIMARY_DASH}
+              />,
+            );
+          }
+
+          // Primary lon lines
+          for (const lon of lonRange(GRAT_PRIMARY_INTERVAL)) {
+            const baseX = mapOffset.x + ((lon + 180) / 360) * GRID_W * cellSize;
+            for (const copy of [-1, 0, 1] as const) {
+              lines.push(
+                <line
+                  key={`plon${lon}_${copy}`}
+                  x1={baseX + panXNorm + copy * mapWidth}
+                  y1={0}
+                  x2={baseX + panXNorm + copy * mapWidth}
+                  y2="100%"
+                  stroke={gratPrimaryColor}
+                  strokeWidth={GRAT_PRIMARY_WIDTH}
+                  strokeDasharray={GRAT_PRIMARY_DASH}
+                />,
+              );
+            }
+          }
+
+          return lines;
+        })()}
 
         {([-1, 0, 1] as const).map((copy) => (
           <g

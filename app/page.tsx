@@ -59,6 +59,7 @@ export default function HomePage() {
   const [intersections, setIntersections] = useState<Intersection[]>([]);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [darkMode, setDarkMode] = useState(true); // default: night mode
   const [flickrKey, setFlickrKey] = useState("");
   const [savingKey, setSavingKey] = useState(false);
   const [savedKey, setSavedKey] = useState(false);
@@ -243,7 +244,7 @@ export default function HomePage() {
         {loading ? (
           <div
             className="absolute inset-0 flex items-center justify-center"
-            style={{ background: "#ffffff" }}
+            style={{ background: darkMode ? "#000000" : "#ffffff" }}
           >
             <div className="text-center">
               <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-green-400 mx-auto mb-3" />
@@ -256,11 +257,46 @@ export default function HomePage() {
               agentData={agentData}
               allLifeDays={allLifeDays}
               intersections={intersections}
+              darkMode={darkMode}
             />
-            <LifelogSidebar lifeDays={allLifeDays} agentData={agentData} />
+            <LifelogSidebar lifeDays={allLifeDays} agentData={agentData} darkMode={darkMode} />
           </>
         )}
       </div>
+
+      {/* Day / Night toggle */}
+      <button
+        onClick={() => setDarkMode((v) => !v)}
+        className="absolute top-20 z-40 flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-mono select-none"
+        style={{
+          right: "9rem",
+          background: darkMode ? "rgba(13,27,42,0.85)" : "rgba(255,255,255,0.85)",
+          color: darkMode ? "#f7dc6f" : "#445566",
+          border: `1px solid ${darkMode ? "#f7dc6f88" : "#99aabb"}`,
+          transition: "background 0.2s, color 0.2s, border-color 0.2s",
+        }}
+      >
+        {/* sliding pill */}
+        <span style={{ position: "relative", display: "inline-flex", alignItems: "center", width: 32, height: 16 }}>
+          <span style={{
+            position: "absolute", inset: 0,
+            borderRadius: 8,
+            background: darkMode ? "#1a2a3a" : "#ccd8e0",
+            border: `1px solid ${darkMode ? "#f7dc6f55" : "#99aabb"}`,
+            transition: "background 0.2s",
+          }} />
+          <span style={{
+            position: "absolute",
+            width: 12, height: 12,
+            borderRadius: "50%",
+            background: darkMode ? "#f7dc6f" : "#ffffff",
+            left: darkMode ? 2 : 18,
+            transition: "left 0.2s, background 0.2s",
+            boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+          }} />
+        </span>
+        {darkMode ? "☾ NIGHT" : "☀ DAY"}
+      </button>
 
       {/* Settings toggle (floating button over map) */}
       <button

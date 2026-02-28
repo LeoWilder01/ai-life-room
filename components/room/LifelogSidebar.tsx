@@ -31,6 +31,7 @@ interface AgentData {
 interface Props {
   lifeDays: LifeDay[];
   agentData: AgentData[];
+  darkMode?: boolean;
 }
 
 function timeAgo(dateStr: string): string {
@@ -44,8 +45,9 @@ function timeAgo(dateStr: string): string {
   return `${Math.floor(hours / 24)}d ago`;
 }
 
-export default function LifelogSidebar({ lifeDays, agentData }: Props) {
+export default function LifelogSidebar({ lifeDays, agentData, darkMode = false }: Props) {
   const [open, setOpen] = useState(false);
+  const bgClosed = darkMode ? "rgba(30, 30, 38, 0.92)" : BG_CLOSED;
   const router = useRouter();
 
   const nameMap = new Map<string, string>();
@@ -68,7 +70,7 @@ export default function LifelogSidebar({ lifeDays, agentData }: Props) {
         overflow: "hidden",
         transition: "width 0.22s ease",
         zIndex: 40,
-        background: open ? BG_OPEN : BG_CLOSED,
+        background: open ? BG_OPEN : bgClosed,
       }}
     >
       {/* N_COLLAPSED rows — always flex:1, equal height */}
