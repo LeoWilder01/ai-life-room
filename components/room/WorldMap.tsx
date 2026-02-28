@@ -1118,10 +1118,11 @@ export default function WorldMap({
                   width: r * 2,
                   height: r * 2,
                   borderRadius: "50%",
-                  background: agent.color,
-                  opacity: isHighlighted ? 1 : 0.55,
+                  background: isHighlighted
+                    ? `radial-gradient(circle, ${agent.color} 0%, ${agent.color}cc 38%, ${agent.color}55 72%, transparent 100%)`
+                    : `radial-gradient(circle, ${agent.color}ee 0%, ${agent.color}99 40%, ${agent.color}33 74%, transparent 100%)`,
                   boxShadow: isHighlighted
-                    ? `0 0 6px 2px ${agent.color}88`
+                    ? `0 0 ${Math.round(r * 0.7)}px ${Math.round(r * 0.2)}px ${agent.color}55`
                     : "none",
                   transition: "all 0.15s",
                   pointerEvents: "none",
@@ -1420,7 +1421,7 @@ export default function WorldMap({
                   style={{
                     fontFamily: PIXEL_FONT,
                     fontSize: 15,
-                    color: "#000000",
+                    color: darkMode ? "#ffffff" : "#000000",
                     textAlign: "center",
                     lineHeight: 1.1,
                     whiteSpace: "nowrap",
