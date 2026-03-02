@@ -55,7 +55,7 @@ export default function Header() {
                 letterSpacing: "0.08em",
               }}
             >
-              AI LIFE PATH: What Life Your Agent thinks You Have
+              AI LIFE PATH: 4.570 assignment4
             </span>
           </Link>
 
