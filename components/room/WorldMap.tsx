@@ -1515,42 +1515,44 @@ export default function WorldMap({
 }
 
 // ─── Git-graph segment (right column inside each lifelog entry row) ───────────
+// Each segment knows its fromTrack (top of row) and toTrack (bottom of row).
+// The track shift — if any — is drawn as a bezier curve within this one row.
 
 function GitSegment({
-  day,
+  roundNumber,
   index,
   color,
-  inferredInfluencers,
+  fromTrack,
+  toTrack,
+  influencer,
+  isLast,
+  graphW,
 }: {
-  day: LifeDay;
+  roundNumber: number;
   index: number;
   color: string;
-  inferredInfluencers: string[];
+  fromTrack: number; // track number at the top of this row
+  toTrack: number;   // track number at the bottom (where the node sits)
+  influencer: string | null; // null = no influence, "__DEVIATE__" = trajectory deviation
+  isLast: boolean;
+  graphW: number;    // total SVG width (shared across all rows for alignment)
 }) {
-  const W = 58;
-  const VH = 56; // viewBox height — maps to ~50% of row height
-  const TX = 15; // trunk x
-  const BX = 46; // branch x
-  const CY = VH / 2; // node vertical center (28)
+  const TX0 = 22;      // x of track 0 — left margin for day-number label
+  const TRACK_W = 12;  // px between tracks
+  const VH = 56;
+  const CY = VH / 2;  // node vertical center (28)
   const NODE_R = 5;
-  const BY = 11; // branch dot y
 
-  // Explicit attraction from agent-submitted data
-  const attractors = (day.interactions || []).filter((ix) => ix.isAttraction);
-  // Text-inferred influence (agentName / displayName found in thoughtBubble or narrative)
-  const hasAttraction = attractors.length > 0 || inferredInfluencers.length > 0;
-  const isDeviation = !!day.isTrajectoryDeviation;
-  const hasBranch = hasAttraction || isDeviation;
-  const nodeColor = isDeviation ? "#f7dc6f" : color;
-
-  // Label: prefer explicit attractor name, fall back to inferred
-  const influencerLabel =
-    attractors[0]?.withAgentName ?? inferredInfluencers[0] ?? null;
+  const fromX = TX0 + fromTrack * TRACK_W;
+  const toX   = TX0 + toTrack   * TRACK_W;
+  const hasBranch  = fromTrack !== toTrack;
+  const isDeviation = influencer === "__DEVIATE__";
+  const nodeColor  = isDeviation ? "#f7dc6f" : color;
 
   return (
     <div
       style={{
-        width: W,
+        width: graphW,
         flexShrink: 0,
         alignSelf: "stretch",
         minHeight: VH,
@@ -1558,85 +1560,76 @@ function GitSegment({
       }}
     >
       <svg
-        width={W}
+        width={graphW}
         height="100%"
-        viewBox={`0 0 ${W} ${VH}`}
+        viewBox={`0 0 ${graphW} ${VH}`}
         preserveAspectRatio="none"
         style={{ position: "absolute", inset: 0, overflow: "visible" }}
       >
-        {/* Trunk line: full height, connects adjacent entries */}
-        <line
-          x1={TX} y1={0} x2={TX} y2={VH}
-          stroke={color + "44"}
-          strokeWidth={2}
-        />
-
-        {hasBranch && (
-          <>
-            {/* Fork: dashed line from trunk node → external dot (= influenced-by source) */}
-            <path
-              d={`M ${TX} ${CY - NODE_R} C ${TX + 8} ${BY + 8} ${BX - 4} ${BY + 4} ${BX} ${BY}`}
-              fill="none"
-              stroke={nodeColor + "99"}
-              strokeWidth={1.5}
-              strokeDasharray="3 2"
-            />
-            {/* External dot representing the influencing source */}
-            <circle
-              cx={BX} cy={BY} r={3}
-              fill="none"
-              stroke={nodeColor + "cc"}
-              strokeWidth={1.5}
-            />
-            {/* Merge arc: solid line from external dot → back to trunk node */}
-            {/* This arrow IS the "which day influenced this decision" pointer */}
-            <path
-              d={`M ${BX} ${BY + 3} C ${BX} ${CY - 2} ${TX + 12} ${CY} ${TX + NODE_R} ${CY}`}
-              fill="none"
-              stroke={nodeColor + "cc"}
-              strokeWidth={1.5}
-            />
-            {/* Label: @agentName (explicit or inferred) or DEVIATE */}
-            {hasAttraction && influencerLabel && (
-              <text
-                x={BX + 3} y={BY - 1}
-                fontSize={7} fill={color + "bb"} fontFamily="monospace"
-              >
-                @{influencerLabel.slice(0, 8)}
-              </text>
-            )}
-            {!hasAttraction && isDeviation && (
-              <text
-                x={BX + 3} y={BY - 1}
-                fontSize={6} fill="#f7dc6fbb" fontFamily="monospace"
-              >
-                DEVIATE
-              </text>
-            )}
-          </>
+        {/* ── Line from top of row down to node ────────────────────────────── */}
+        {index > 0 && (
+          hasBranch
+            ? /* bezier: old track → new track, transition within this row */
+              <path
+                d={`M ${fromX} 0 C ${fromX} ${CY * 0.55} ${toX} ${CY * 0.45} ${toX} ${CY - NODE_R}`}
+                fill="none"
+                stroke={nodeColor + "99"}
+                strokeWidth={2}
+              />
+            : /* straight vertical on same track */
+              <line
+                x1={fromX} y1={0} x2={fromX} y2={CY - NODE_R}
+                stroke={color + "55"} strokeWidth={2}
+              />
         )}
 
-        {/* Main trunk node */}
+        {/* ── Line from node down to bottom of row (continues to next entry) ─ */}
+        {!isLast && (
+          <line
+            x1={toX} y1={CY + NODE_R} x2={toX} y2={VH}
+            stroke={color + "55"} strokeWidth={2}
+          />
+        )}
+
+        {/* ── Commit node ──────────────────────────────────────────────────── */}
         <circle
-          cx={TX} cy={CY} r={NODE_R}
+          cx={toX} cy={CY} r={NODE_R}
           fill={hasBranch ? nodeColor : "#0d1b2a"}
           stroke={nodeColor}
           strokeWidth={2}
         />
 
-        {/* Day number label */}
+        {/* ── Day number: right-aligned, ends just left of the node ─────── */}
         <text
-          x={2} y={CY + 4}
-          fontSize={9} fill={color + "88"} textAnchor="start" fontFamily="monospace"
+          x={toX - NODE_R - 4} y={CY + 5}
+          fontSize={14} fill={color + "99"} textAnchor="end"
+          fontFamily="'VT323', monospace"
         >
-          {day.roundNumber}
+          {roundNumber}
         </text>
 
-        {/* Self-influence chevron: tiny downward triangle above node */}
-        {/* Means "this decision flows from my own previous day" */}
+        {/* ── Influencer label (shown when track shifts) ───────────────────── */}
+        {hasBranch && influencer && !isDeviation && (
+          <text
+            x={toX + NODE_R + 3} y={CY + 5}
+            fontSize={13} fill={color + "dd"} fontFamily="'VT323', monospace"
+          >
+            @{influencer.slice(0, 9)}
+          </text>
+        )}
+        {hasBranch && isDeviation && (
+          <text
+            x={toX + NODE_R + 3} y={CY + 5}
+            fontSize={13} fill="#f7dc6fee" fontFamily="'VT323', monospace"
+          >
+            DEVIATE
+          </text>
+        )}
+
+        {/* ── Self-influence chevron (no track change, not first day) ─────── */}
         {!hasBranch && index > 0 && (
           <polygon
-            points={`${TX - 3},${CY - NODE_R - 7} ${TX + 3},${CY - NODE_R - 7} ${TX},${CY - NODE_R - 2}`}
+            points={`${fromX - 3},${CY - NODE_R - 7} ${fromX + 3},${CY - NODE_R - 7} ${fromX},${CY - NODE_R - 2}`}
             fill={color + "66"}
           />
         )}
@@ -1660,9 +1653,62 @@ function AgentPopup({
   containerRef: React.RefObject<HTMLDivElement | null>;
   inferredInfluenceMap: Map<string, string[]>;
 }) {
-  const POPUP_W = 358; // 300 content + 58 git graph
   const ENTRY_H = 70; // approx per entry
+
+  // ── Compute per-day track assignments (git-branch logic) ─────────────────
+  const GIT_TX0   = 22;  // x of track 0 within the git column (matches GitSegment TX0)
+  const GIT_TW    = 12;  // pixels between adjacent tracks
+  const agentTrackMap = new Map<string, number>();
+  let currentTrack = 0;
+  let nextTrack    = 1;
+
+  const dayTracks = trailDays.map((day) => {
+    const explicit  = day.interactions?.find((ix) => ix.isAttraction)?.withAgentName ?? null;
+    const inferred  = (inferredInfluenceMap.get(day._id) ?? [])[0] ?? null;
+    const influencer =
+      explicit ?? inferred ?? (day.isTrajectoryDeviation ? "__DEVIATE__" : null);
+
+    const fromTrack = currentTrack;
+    let toTrack: number;
+
+    if (!influencer) {
+      toTrack = currentTrack; // no influence → stay on same track
+    } else if (agentTrackMap.has(influencer)) {
+      toTrack = agentTrackMap.get(influencer)!; // seen before → return to its track
+      currentTrack = toTrack;
+    } else {
+      toTrack = nextTrack; // new influencer → shift one track to the right
+      agentTrackMap.set(influencer, nextTrack);
+      nextTrack++;
+      currentTrack = toTrack;
+    }
+
+    return { fromTrack, toTrack, influencer };
+  });
+
+  const maxTrack = dayTracks.reduce(
+    (m, dt) => Math.max(m, dt.fromTrack, dt.toTrack),
+    0,
+  );
+  const GRAPH_W = GIT_TX0 + (maxTrack + 1) * GIT_TW + 22;
+  const POPUP_W = 300 + GRAPH_W;
   const POPUP_H = 110 + trailDays.length * ENTRY_H;
+
+  // ── Return connections: days that revisit a previously-used track ─────────
+  // Used to draw a subtle dashed line from the current node up to the earlier
+  // node it "returns" to, giving the graph a git-graph frame feeling.
+  const returnConnections: { fromIdx: number; toIdx: number }[] = [];
+  for (let i = 1; i < dayTracks.length; i++) {
+    const { fromTrack, toTrack } = dayTracks[i];
+    if (fromTrack === toTrack) continue; // no track change
+    // Find the most recent previous day that sat on toTrack
+    for (let j = i - 1; j >= 0; j--) {
+      if (dayTracks[j].toTrack === toTrack) {
+        returnConnections.push({ fromIdx: j, toIdx: i });
+        break;
+      }
+    }
+  }
 
   const container = containerRef.current;
   let px = pos.x + 16,
@@ -1723,71 +1769,118 @@ function AgentPopup({
           <div style={{ color: "#6a7a8e", fontSize: 14, marginBottom: 6 }}>
             {trailDays.length} entr{trailDays.length !== 1 ? "ies" : "y"}
           </div>
-          {trailDays.map((day, i) => {
-            const proxyPhoto = day.photo.originalUrl
-              ? `/api/photos/proxy?url=${encodeURIComponent(day.photo.originalUrl)}`
-              : null;
-            return (
-              <div
-                key={day._id || i}
-                style={{
-                  display: "flex",
-                  gap: 8,
-                  marginBottom: 8,
-                  alignItems: "flex-start",
-                }}
-              >
-                {/* Photo thumbnail */}
+          {/* Wrap entries in a relative container so the overlay SVG can be placed inside */}
+          <div style={{ position: "relative" }}>
+            {trailDays.map((day, i) => {
+              const proxyPhoto = day.photo.originalUrl
+                ? `/api/photos/proxy?url=${encodeURIComponent(day.photo.originalUrl)}`
+                : null;
+              return (
                 <div
+                  key={day._id || i}
                   style={{
-                    width: 52,
-                    height: 40,
-                    flexShrink: 0,
-                    borderRadius: 2,
-                    overflow: "hidden",
-                    background: "#1a2a3a",
-                    border: `1px solid ${agent.color}44`,
+                    display: "flex",
+                    gap: 8,
+                    marginBottom: 8,
+                    alignItems: "flex-start",
                   }}
                 >
-                  {proxyPhoto && <PhotoThumb src={proxyPhoto} alt="" />}
-                </div>
-                {/* Text */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{ color: agent.color, fontSize: 15, lineHeight: 1 }}
-                  >
-                    Day {day.roundNumber} · Age {day.fictionalAge}
-                  </div>
-                  <div
-                    style={{ color: "#6a7a8e", fontSize: 13, lineHeight: 1 }}
-                  >
-                    {day.location.city} · {fmtDate(day.fictionalDate)}
-                  </div>
+                  {/* Photo thumbnail */}
                   <div
                     style={{
-                      color: "#a8b2c4",
-                      fontSize: 14,
-                      lineHeight: 1.2,
-                      marginTop: 2,
+                      width: 52,
+                      height: 40,
+                      flexShrink: 0,
+                      borderRadius: 2,
                       overflow: "hidden",
-                      display: "-webkit-box",
-                      WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical",
+                      background: "#1a2a3a",
+                      border: `1px solid ${agent.color}44`,
                     }}
                   >
-                    {day.thoughtBubble}
+                    {proxyPhoto && <PhotoThumb src={proxyPhoto} alt="" />}
                   </div>
+                  {/* Text */}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{ color: agent.color, fontSize: 15, lineHeight: 1 }}
+                    >
+                      Day {day.roundNumber} · Age {day.fictionalAge}
+                    </div>
+                    <div
+                      style={{ color: "#6a7a8e", fontSize: 13, lineHeight: 1 }}
+                    >
+                      {day.location.city} · {fmtDate(day.fictionalDate)}
+                    </div>
+                    <div
+                      style={{
+                        color: "#a8b2c4",
+                        fontSize: 14,
+                        lineHeight: 1.2,
+                        marginTop: 2,
+                        overflow: "hidden",
+                        display: "-webkit-box",
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: "vertical",
+                      }}
+                    >
+                      {day.thoughtBubble}
+                    </div>
+                  </div>
+                  {/* Git-graph segment: one column per entry, aligned to row height */}
+                  <GitSegment
+                    roundNumber={day.roundNumber}
+                    index={i}
+                    color={agent.color}
+                    fromTrack={dayTracks[i].fromTrack}
+                    toTrack={dayTracks[i].toTrack}
+                    influencer={dayTracks[i].influencer}
+                    isLast={i === trailDays.length - 1}
+                    graphW={GRAPH_W}
+                  />
                 </div>
-                {/* Git-graph segment: one column per entry, aligned to row height */}
-                <GitSegment
-                  day={day}
-                  index={i}
-                  color={agent.color}
-                  inferredInfluencers={inferredInfluenceMap.get(day._id) ?? []}
-                />
-              </div>
-            );
-          })}
+              );
+            })}
+
+            {/* ── Return-connection overlay ───────────────────────────────────
+                A single absolutely-positioned SVG drawn over the git column,
+                connecting "return" nodes with a very faint dashed line.
+                Row pitch ≈ 64 px (56 minHeight + 8 marginBottom).
+                Node centre within row ≈ 28 px (VH/2). Node radius = 5. */}
+            {returnConnections.length > 0 && (() => {
+              const PITCH  = 64; // approximate row pitch in px
+              const NY     = 28; // node centre Y within its row
+              const NR     = 5;  // node radius
+              return (
+                <svg
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    right: 0,
+                    width: GRAPH_W,
+                    height: trailDays.length * PITCH,
+                    overflow: "visible",
+                    pointerEvents: "none",
+                  }}
+                >
+                  {returnConnections.map(({ fromIdx, toIdx }) => {
+                    const x  = GIT_TX0 + dayTracks[toIdx].toTrack * GIT_TW;
+                    const y1 = fromIdx * PITCH + NY + NR + 3;
+                    const y2 = toIdx   * PITCH + NY - NR - 3;
+                    return (
+                      <line
+                        key={`rc-${fromIdx}-${toIdx}`}
+                        x1={x} y1={y1}
+                        x2={x} y2={y2}
+                        stroke={agent.color + "28"}
+                        strokeWidth={1.5}
+                        strokeDasharray="3 5"
+                      />
+                    );
+                  })}
+                </svg>
+              );
+            })()}
+          </div>
         </>
       )}
     </div>
