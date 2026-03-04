@@ -331,6 +331,7 @@ interface LifeDay {
     description: string;
     isAttraction: boolean;
   }[];
+  isTrajectoryDeviation?: boolean;
 }
 
 interface Agent {
@@ -533,6 +534,44 @@ export default function WorldMap({
       );
     return map;
   }, [allLifeDays]);
+
+  // ── Inferred influence map (text-based) ──────────────────────────────────
+  // For each lifeDay _id, stores the list of other agentNames whose name or
+  // displayName appears in that day's thoughtBubble or narrative.
+  const inferredInfluenceMap = useMemo(() => {
+    const map = new Map<string, string[]>(); // lifeDayId → influencing agentNames
+
+    // Build per-agent search terms: agentName + displayName only
+    const agentTerms: { agentName: string; terms: string[] }[] = [];
+    for (const d of agentData) {
+      const terms: string[] = [d.agent.name.toLowerCase()];
+      if (d.persona?.displayName) {
+        terms.push(d.persona.displayName.toLowerCase());
+      }
+      agentTerms.push({ agentName: d.agent.name, terms });
+    }
+
+    for (const day of allLifeDays) {
+      const text = (
+        (day.thoughtBubble || "") + " " + (day.narrative || "")
+      ).toLowerCase();
+
+      const influencers: string[] = [];
+      for (const { agentName, terms } of agentTerms) {
+        if (agentName === day.agentName) continue; // skip self
+        const matched = terms.some(
+          (term) => term.length > 2 && text.includes(term),
+        );
+        if (matched) influencers.push(agentName);
+      }
+
+      if (influencers.length > 0) {
+        map.set(day._id, influencers);
+      }
+    }
+
+    return map;
+  }, [agentData, allLifeDays]);
 
   // ── Intersection adjacency ────────────────────────────────────────────────
   const adjacency = useMemo(() => {
@@ -1295,6 +1334,7 @@ export default function WorldMap({
                 trailDays={trailDays}
                 pos={popupPos}
                 containerRef={containerRef}
+                inferredInfluenceMap={inferredInfluenceMap}
               />
             );
           } else {
@@ -1474,6 +1514,137 @@ export default function WorldMap({
   );
 }
 
+// ─── Git-graph segment (right column inside each lifelog entry row) ───────────
+
+function GitSegment({
+  day,
+  index,
+  color,
+  inferredInfluencers,
+}: {
+  day: LifeDay;
+  index: number;
+  color: string;
+  inferredInfluencers: string[];
+}) {
+  const W = 58;
+  const VH = 56; // viewBox height — maps to ~50% of row height
+  const TX = 15; // trunk x
+  const BX = 46; // branch x
+  const CY = VH / 2; // node vertical center (28)
+  const NODE_R = 5;
+  const BY = 11; // branch dot y
+
+  // Explicit attraction from agent-submitted data
+  const attractors = (day.interactions || []).filter((ix) => ix.isAttraction);
+  // Text-inferred influence (agentName / displayName found in thoughtBubble or narrative)
+  const hasAttraction = attractors.length > 0 || inferredInfluencers.length > 0;
+  const isDeviation = !!day.isTrajectoryDeviation;
+  const hasBranch = hasAttraction || isDeviation;
+  const nodeColor = isDeviation ? "#f7dc6f" : color;
+
+  // Label: prefer explicit attractor name, fall back to inferred
+  const influencerLabel =
+    attractors[0]?.withAgentName ?? inferredInfluencers[0] ?? null;
+
+  return (
+    <div
+      style={{
+        width: W,
+        flexShrink: 0,
+        alignSelf: "stretch",
+        minHeight: VH,
+        position: "relative",
+      }}
+    >
+      <svg
+        width={W}
+        height="100%"
+        viewBox={`0 0 ${W} ${VH}`}
+        preserveAspectRatio="none"
+        style={{ position: "absolute", inset: 0, overflow: "visible" }}
+      >
+        {/* Trunk line: full height, connects adjacent entries */}
+        <line
+          x1={TX} y1={0} x2={TX} y2={VH}
+          stroke={color + "44"}
+          strokeWidth={2}
+        />
+
+        {hasBranch && (
+          <>
+            {/* Fork: dashed line from trunk node → external dot (= influenced-by source) */}
+            <path
+              d={`M ${TX} ${CY - NODE_R} C ${TX + 8} ${BY + 8} ${BX - 4} ${BY + 4} ${BX} ${BY}`}
+              fill="none"
+              stroke={nodeColor + "99"}
+              strokeWidth={1.5}
+              strokeDasharray="3 2"
+            />
+            {/* External dot representing the influencing source */}
+            <circle
+              cx={BX} cy={BY} r={3}
+              fill="none"
+              stroke={nodeColor + "cc"}
+              strokeWidth={1.5}
+            />
+            {/* Merge arc: solid line from external dot → back to trunk node */}
+            {/* This arrow IS the "which day influenced this decision" pointer */}
+            <path
+              d={`M ${BX} ${BY + 3} C ${BX} ${CY - 2} ${TX + 12} ${CY} ${TX + NODE_R} ${CY}`}
+              fill="none"
+              stroke={nodeColor + "cc"}
+              strokeWidth={1.5}
+            />
+            {/* Label: @agentName (explicit or inferred) or DEVIATE */}
+            {hasAttraction && influencerLabel && (
+              <text
+                x={BX + 3} y={BY - 1}
+                fontSize={7} fill={color + "bb"} fontFamily="monospace"
+              >
+                @{influencerLabel.slice(0, 8)}
+              </text>
+            )}
+            {!hasAttraction && isDeviation && (
+              <text
+                x={BX + 3} y={BY - 1}
+                fontSize={6} fill="#f7dc6fbb" fontFamily="monospace"
+              >
+                DEVIATE
+              </text>
+            )}
+          </>
+        )}
+
+        {/* Main trunk node */}
+        <circle
+          cx={TX} cy={CY} r={NODE_R}
+          fill={hasBranch ? nodeColor : "#0d1b2a"}
+          stroke={nodeColor}
+          strokeWidth={2}
+        />
+
+        {/* Day number label */}
+        <text
+          x={2} y={CY + 4}
+          fontSize={9} fill={color + "88"} textAnchor="start" fontFamily="monospace"
+        >
+          {day.roundNumber}
+        </text>
+
+        {/* Self-influence chevron: tiny downward triangle above node */}
+        {/* Means "this decision flows from my own previous day" */}
+        {!hasBranch && index > 0 && (
+          <polygon
+            points={`${TX - 3},${CY - NODE_R - 7} ${TX + 3},${CY - NODE_R - 7} ${TX},${CY - NODE_R - 2}`}
+            fill={color + "66"}
+          />
+        )}
+      </svg>
+    </div>
+  );
+}
+
 // ─── Agent popup (tall: header + all trail life days) ─────────────────────────
 
 function AgentPopup({
@@ -1481,13 +1652,15 @@ function AgentPopup({
   trailDays,
   pos,
   containerRef,
+  inferredInfluenceMap,
 }: {
   agent: AgentOnMap;
   trailDays: LifeDay[];
   pos: { x: number; y: number };
   containerRef: React.RefObject<HTMLDivElement | null>;
+  inferredInfluenceMap: Map<string, string[]>;
 }) {
-  const POPUP_W = 300;
+  const POPUP_W = 358; // 300 content + 58 git graph
   const ENTRY_H = 70; // approx per entry
   const POPUP_H = 110 + trailDays.length * ENTRY_H;
 
@@ -1605,6 +1778,13 @@ function AgentPopup({
                     {day.thoughtBubble}
                   </div>
                 </div>
+                {/* Git-graph segment: one column per entry, aligned to row height */}
+                <GitSegment
+                  day={day}
+                  index={i}
+                  color={agent.color}
+                  inferredInfluencers={inferredInfluenceMap.get(day._id) ?? []}
+                />
               </div>
             );
           })}
